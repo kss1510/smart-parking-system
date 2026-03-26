@@ -215,36 +215,30 @@ export default function ZoneDetailScreen() {
     <View style={[styles.screen, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <Feather name="arrow-left" size={20} color={C.text} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>Zone {name ?? id}</Text>
-          <Text style={styles.headerSub}>{freeCount} slots available · {facultyCount} faculty reserved</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: C.statusFree }]} />
-          <View style={[styles.legendDot, { backgroundColor: C.statusReserved }]} />
-          <View style={[styles.legendDot, { backgroundColor: C.statusOccupied }]} />
-          <View style={[styles.legendDot, { backgroundColor: "#8B5CF6" }]} />
+          <Text style={styles.headerSub}>{freeCount} free · {facultyCount} faculty · {occupiedCount} occupied</Text>
         </View>
       </View>
 
       <View style={styles.statsBar}>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusFree }]} />
-          <Text style={styles.chipText}>{freeCount} Free</Text>
+        <View style={[styles.statChip, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+          <View style={[styles.chipDot, { backgroundColor: "#22C55E" }]} />
+          <Text style={[styles.chipText, { color: "#16A34A" }]}>{freeCount} Free</Text>
         </View>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusReserved }]} />
-          <Text style={styles.chipText}>{reservedCount} Reserved</Text>
+        <View style={[styles.statChip, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+          <View style={[styles.chipDot, { backgroundColor: "#F59E0B" }]} />
+          <Text style={[styles.chipText, { color: "#B45309" }]}>{reservedCount} Reserved</Text>
         </View>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusOccupied }]} />
-          <Text style={styles.chipText}>{occupiedCount} Occupied</Text>
+        <View style={[styles.statChip, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
+          <View style={[styles.chipDot, { backgroundColor: "#EF4444" }]} />
+          <Text style={[styles.chipText, { color: "#DC2626" }]}>{occupiedCount} Occupied</Text>
         </View>
-        <View style={styles.statChip}>
+        <View style={[styles.statChip, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
           <View style={[styles.chipDot, { backgroundColor: "#8B5CF6" }]} />
-          <Text style={styles.chipText}>{facultyCount} Faculty</Text>
+          <Text style={[styles.chipText, { color: "#7C3AED" }]}>{facultyCount} Faculty</Text>
         </View>
       </View>
 
@@ -337,10 +331,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#F5F7FA",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    borderWidth: 1,
   },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
   chipText: {
