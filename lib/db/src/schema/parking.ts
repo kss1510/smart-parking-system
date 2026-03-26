@@ -3,12 +3,14 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const slotStatusEnum = pgEnum("slot_status", ["FREE", "RESERVED", "OCCUPIED"]);
+export const slotTypeEnum = pgEnum("slot_type", ["STUDENT", "FACULTY", "ANY"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
+  isFaculty: boolean("is_faculty").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -22,9 +24,11 @@ export const slotsTable = pgTable("slots", {
   zoneId: integer("zone_id").notNull().references(() => zonesTable.id, { onDelete: "cascade" }),
   slotNumber: text("slot_number").notNull(),
   status: slotStatusEnum("status").notNull().default("FREE"),
+  slotType: slotTypeEnum("slot_type").notNull().default("ANY"),
   vehicleNumber: text("vehicle_number"),
   entryTime: timestamp("entry_time"),
   reservedUntil: timestamp("reserved_until"),
+  qrToken: text("qr_token"),
 });
 
 export const historyTable = pgTable("history", {
