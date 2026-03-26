@@ -87,7 +87,7 @@ router.post("/:slotId/reserve", async (req, res) => {
     return res.status(409).json({ error: "Slot is occupied" });
   }
 
-  const reservedUntil = new Date(now.getTime() + 30 * 1000);
+  const reservedUntil = new Date(now.getTime() + 5 * 60 * 1000);
   const [updated] = await db.update(slotsTable).set({
     status: "RESERVED",
     reservedUntil,

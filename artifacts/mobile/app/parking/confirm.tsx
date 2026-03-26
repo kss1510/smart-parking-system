@@ -30,7 +30,7 @@ export default function ConfirmParkingScreen() {
   const { showNotification, refreshZones, refreshActiveSession, selectedVehicle, setSelectedVehicle } = useParking();
 
   const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? "");
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(300);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function ConfirmParkingScreen() {
     } catch (e: any) {
       const msg = e?.message ?? "Failed to confirm parking.";
       if (msg.includes("expired")) {
-        Alert.alert("Reservation Expired", "Your 30-second reservation has expired. Please select a slot again.");
+        Alert.alert("Reservation Expired", "Your 5-minute reservation has expired. Please select a slot again.");
         router.back();
       } else {
         Alert.alert("Error", msg);
@@ -70,9 +70,12 @@ export default function ConfirmParkingScreen() {
     }
   };
 
-  const countdownColor = countdown <= 10 ? C.statusOccupied : countdown <= 20 ? C.statusReserved : C.statusFree;
+  const countdownColor = countdown <= 60 ? C.statusOccupied : countdown <= 120 ? C.statusReserved : C.statusFree;
   const circumference = 2 * Math.PI * 28;
-  const progress = countdown / 30;
+  const progress = countdown / 300;
+  const timerMins = Math.floor(countdown / 60);
+  const timerSecs = countdown % 60;
+  const timerDisplay = `${String(timerMins).padStart(2, "0")}:${String(timerSecs).padStart(2, "0")}`;
 
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
@@ -100,8 +103,8 @@ export default function ConfirmParkingScreen() {
       <View style={styles.timerCard}>
         <Text style={styles.timerTitle}>Reservation Expires In</Text>
         <View style={styles.timerCircle}>
-          <Text style={[styles.timerNum, { color: countdownColor }]}>{countdown}</Text>
-          <Text style={styles.timerSec}>seconds</Text>
+          <Text style={[styles.timerNum, { color: countdownColor }]}>{timerDisplay}</Text>
+          <Text style={styles.timerSec}>minutes</Text>
         </View>
         <Text style={styles.timerHint}>Confirm your parking before the timer runs out</Text>
       </View>
@@ -249,8 +252,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   timerNum: {
-    fontSize: 30,
+    fontSize: 36,
     fontFamily: "Inter_700Bold",
+    letterSpacing: 2,
   },
   timerSec: {
     fontSize: 11,
