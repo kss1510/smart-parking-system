@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { zonesTable, slotsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
-import { asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -27,7 +26,6 @@ router.get("/:zoneId/slots", async (req, res) => {
 
   if (!zone) return res.status(404).json({ error: "Zone not found" });
 
-  // Auto-release expired reservations
   const now = new Date();
   const expiredSlots = await db.select().from(slotsTable).where(
     and(eq(slotsTable.zoneId, zoneId), eq(slotsTable.status, "RESERVED"))
@@ -38,6 +36,7 @@ router.get("/:zoneId/slots", async (req, res) => {
         status: "FREE",
         vehicleNumber: null,
         reservedUntil: null,
+        qrToken: null,
       }).where(eq(slotsTable.id, slot.id));
     }
   }
@@ -52,9 +51,11 @@ router.get("/:zoneId/slots", async (req, res) => {
     zoneName: zone.name,
     slotNumber: s.slotNumber,
     status: s.status,
+    slotType: s.slotType,
     vehicleNumber: s.vehicleNumber ?? null,
     entryTime: s.entryTime?.toISOString() ?? null,
     reservedUntil: s.reservedUntil?.toISOString() ?? null,
+    qrToken: s.qrToken ?? null,
   })));
 });
 

@@ -38,15 +38,54 @@ export const SlotStatus = {
   OCCUPIED: "OCCUPIED",
 } as const;
 
+export type SlotType = (typeof SlotType)[keyof typeof SlotType];
+
+export const SlotType = {
+  STUDENT: "STUDENT",
+  FACULTY: "FACULTY",
+  ANY: "ANY",
+} as const;
+
 export interface Slot {
   id: number;
   zoneId: number;
   zoneName: string;
   slotNumber: string;
   status: SlotStatus;
+  slotType: SlotType;
   vehicleNumber?: string | null;
   entryTime?: string | null;
   reservedUntil?: string | null;
+  qrToken?: string | null;
+}
+
+export interface ReserveSlotBody {
+  vehicleNumber: string;
+}
+
+export interface ReserveSlotResponse {
+  id: number;
+  zoneId: number;
+  zoneName: string;
+  slotNumber: string;
+  status: SlotStatus;
+  slotType: SlotType;
+  vehicleNumber: string;
+  entryTime: string | null;
+  reservedUntil: string;
+  qrToken: string;
+}
+
+export interface VerifyQrBody {
+  token: string;
+}
+
+export interface VerifyQrResponse {
+  slotId: number;
+  slotNumber: string;
+  zoneName: string;
+  vehicleNumber: string;
+  entryTime: string;
 }
 
 export interface ParkingSession {
@@ -96,8 +135,4 @@ export interface MessageResponse {
 
 export type GetActiveParkingParams = {
   vehicleNumber?: string;
-};
-
-export type GetParkingHistoryParams = {
-  limit?: number;
 };

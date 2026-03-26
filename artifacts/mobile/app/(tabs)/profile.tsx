@@ -165,6 +165,16 @@ export default function ProfileScreen() {
             <>
               <View style={styles.divider} />
               <MenuRow
+                icon="camera"
+                label="Verify Student QR"
+                subtitle="Scan & approve student entry at gate"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/admin/scanner");
+                }}
+              />
+              <View style={styles.divider} />
+              <MenuRow
                 icon="plus-circle"
                 label="Add Parking Slot"
                 subtitle="Add a new slot to a zone"

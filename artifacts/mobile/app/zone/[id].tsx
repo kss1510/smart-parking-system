@@ -15,7 +15,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { getSlotsByZone, reserveSlot } from "@workspace/api-client-react";
+import { getSlotsByZone } from "@workspace/api-client-react";
 import type { Slot } from "@workspace/api-client-react";
 import { useParking } from "@/context/ParkingContext";
 import { useAuth } from "@/context/AuthContext";
@@ -27,12 +27,18 @@ function SlotCard({
   slot,
   isSuggested,
   onPress,
+  onLongPress,
+  isAdmin,
 }: {
   slot: Slot;
   isSuggested: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
+  isAdmin: boolean;
 }) {
   const [countdown, setCountdown] = useState<number | null>(null);
+
+  const isFacultyLocked = slot.slotType === "FACULTY";
 
   useEffect(() => {
     if (slot.status === "RESERVED" && slot.reservedUntil) {
@@ -49,40 +55,51 @@ function SlotCard({
     }
   }, [slot.status, slot.reservedUntil]);
 
-  const bgColor =
-    slot.status === "FREE"
-      ? isSuggested ? C.infoLight : C.statusFreeLight
-      : slot.status === "RESERVED"
-      ? C.statusReservedLight
-      : C.statusOccupiedLight;
+  const bgColor = isFacultyLocked && slot.status === "FREE"
+    ? "#F0E6FF"
+    : slot.status === "FREE"
+    ? isSuggested ? C.infoLight : C.statusFreeLight
+    : slot.status === "RESERVED"
+    ? C.statusReservedLight
+    : C.statusOccupiedLight;
 
-  const borderColor =
-    isSuggested
-      ? C.info
+  const borderColor = isFacultyLocked && slot.status === "FREE"
+    ? "#8B5CF6"
+    : isSuggested
+    ? C.info
+    : slot.status === "FREE"
+    ? C.statusFree
+    : slot.status === "RESERVED"
+    ? C.statusReserved
+    : C.statusOccupied;
+
+  const textColor = isFacultyLocked && slot.status === "FREE"
+    ? "#8B5CF6"
+    : slot.status === "FREE"
+    ? isSuggested ? C.info : C.statusFree
+    : slot.status === "RESERVED"
+    ? C.statusReserved
+    : C.statusOccupied;
+
+  const iconName =
+    isFacultyLocked && slot.status === "FREE"
+      ? "lock"
       : slot.status === "FREE"
-      ? C.statusFree
+      ? "check-circle"
       : slot.status === "RESERVED"
-      ? C.statusReserved
-      : C.statusOccupied;
+      ? "clock"
+      : "x-circle";
 
-  const textColor =
-    slot.status === "FREE"
-      ? isSuggested ? C.info : C.statusFree
-      : slot.status === "RESERVED"
-      ? C.statusReserved
-      : C.statusOccupied;
-
-  const iconName: "check-circle" | "clock" | "x-circle" =
-    slot.status === "FREE" ? "check-circle" :
-    slot.status === "RESERVED" ? "clock" : "x-circle";
+  const isDisabled = slot.status === "OCCUPIED" || (isFacultyLocked && !isAdmin);
 
   return (
     <Pressable
-      onPress={slot.status !== "OCCUPIED" ? onPress : undefined}
+      onPress={isDisabled ? undefined : onPress}
+      onLongPress={isAdmin && slot.status !== "FREE" ? onLongPress : undefined}
       style={({ pressed }) => [
         styles.slotCard,
         { backgroundColor: bgColor, borderColor, opacity: pressed ? 0.85 : 1 },
-        slot.status === "OCCUPIED" && styles.slotDisabled,
+        isDisabled && styles.slotDisabled,
         isSuggested && styles.slotSuggested,
       ]}
     >
@@ -91,13 +108,23 @@ function SlotCard({
           <Feather name="zap" size={8} color={C.info} />
         </View>
       )}
-      <Feather name={iconName} size={18} color={textColor} />
+      {isFacultyLocked && slot.status === "FREE" && (
+        <View style={styles.facultyBadge}>
+          <Text style={styles.facultyBadgeText}>FAC</Text>
+        </View>
+      )}
+      <Feather name={iconName as any} size={18} color={textColor} />
       <Text style={[styles.slotNum, { color: textColor }]}>{slot.slotNumber}</Text>
-      {slot.status === "FREE" && (
+      {isFacultyLocked && slot.status === "FREE" && (
+        <Text style={[styles.slotStatus, { color: "#8B5CF6", fontSize: 9 }]}>Faculty</Text>
+      )}
+      {!isFacultyLocked && slot.status === "FREE" && (
         <Text style={[styles.slotStatus, { color: C.statusFree }]}>Free</Text>
       )}
       {slot.status === "RESERVED" && countdown !== null && (
-        <Text style={[styles.slotStatus, { color: C.statusReserved, fontSize: 10 }]}>{countdown}s</Text>
+        <Text style={[styles.slotStatus, { color: C.statusReserved, fontSize: 10 }]}>
+          {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
+        </Text>
       )}
       {slot.status === "OCCUPIED" && (
         <Text style={[styles.slotStatus, { color: C.statusOccupied }]}>Occupied</Text>
@@ -114,7 +141,6 @@ export default function ZoneDetailScreen() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [reservingId, setReservingId] = useState<number | null>(null);
 
   const suggestedId = suggestedSlotId ? parseInt(suggestedSlotId, 10) : null;
 
@@ -136,40 +162,26 @@ export default function ZoneDetailScreen() {
     return () => clearInterval(interval);
   }, [load]);
 
-  const handleSlotPress = async (slot: Slot) => {
+  const handleSlotPress = (slot: Slot) => {
     if (slot.status === "OCCUPIED") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    if (slot.status === "FREE") {
-      setReservingId(slot.id);
-      try {
-        await reserveSlot(slot.id);
-        showNotification(`Slot ${slot.slotNumber} reserved for 30 seconds!`);
-        await load();
-        await refreshZones();
-        router.push({
-          pathname: "/parking/confirm",
-          params: {
-            slotId: String(slot.id),
-            slotNumber: slot.slotNumber,
-            zoneName: slot.zoneName ?? name ?? "",
-          },
-        });
-      } catch (e: any) {
-        showNotification(e?.message ?? "Could not reserve slot.");
-      } finally {
-        setReservingId(null);
-      }
-    } else if (slot.status === "RESERVED") {
-      router.push({
-        pathname: "/parking/confirm",
-        params: {
-          slotId: String(slot.id),
-          slotNumber: slot.slotNumber,
-          zoneName: slot.zoneName ?? name ?? "",
-        },
-      });
+    if (slot.slotType === "FACULTY" && !user?.isAdmin) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "Faculty Only",
+        "This slot is reserved exclusively for faculty members.",
+        [{ text: "OK" }]
+      );
+      return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: "/parking/confirm",
+      params: {
+        slotId: String(slot.id),
+        slotNumber: slot.slotNumber,
+        zoneName: slot.zoneName ?? name ?? "",
+      },
+    });
   };
 
   const handleAdminReset = async (slot: Slot) => {
@@ -192,7 +204,8 @@ export default function ZoneDetailScreen() {
     ]);
   };
 
-  const freeCount = slots.filter(s => s.status === "FREE").length;
+  const freeCount = slots.filter(s => s.status === "FREE" && s.slotType !== "FACULTY").length;
+  const facultyCount = slots.filter(s => s.slotType === "FACULTY").length;
   const reservedCount = slots.filter(s => s.status === "RESERVED").length;
   const occupiedCount = slots.filter(s => s.status === "OCCUPIED").length;
 
@@ -206,12 +219,13 @@ export default function ZoneDetailScreen() {
         </Pressable>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>Zone {name ?? id}</Text>
-          <Text style={styles.headerSub}>{freeCount} slots available</Text>
+          <Text style={styles.headerSub}>{freeCount} slots available · {facultyCount} faculty reserved</Text>
         </View>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: C.statusFree }]} />
           <View style={[styles.legendDot, { backgroundColor: C.statusReserved }]} />
           <View style={[styles.legendDot, { backgroundColor: C.statusOccupied }]} />
+          <View style={[styles.legendDot, { backgroundColor: "#8B5CF6" }]} />
         </View>
       </View>
 
@@ -228,47 +242,44 @@ export default function ZoneDetailScreen() {
           <View style={[styles.chipDot, { backgroundColor: C.statusOccupied }]} />
           <Text style={styles.chipText}>{occupiedCount} Occupied</Text>
         </View>
+        <View style={styles.statChip}>
+          <View style={[styles.chipDot, { backgroundColor: "#8B5CF6" }]} />
+          <Text style={styles.chipText}>{facultyCount} Faculty</Text>
+        </View>
       </View>
 
-      {suggestedId && (
-        <View style={styles.aiHint}>
-          <Feather name="zap" size={14} color={C.info} />
-          <Text style={styles.aiHintText}>AI suggested slot highlighted in blue</Text>
-        </View>
-      )}
-
       {loading ? (
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator color={C.tint} size="large" />
-          <Text style={styles.loadingText}>Loading slots...</Text>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={C.tint} />
         </View>
       ) : (
         <FlatList
           data={slots}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={s => String(s.id)}
           numColumns={NUM_COLS}
-          contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={styles.grid}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.tint} />}
           renderItem={({ item }) => (
             <SlotCard
               slot={item}
               isSuggested={item.id === suggestedId}
-              onPress={() => user?.isAdmin && item.status === "OCCUPIED" ? handleAdminReset(item) : handleSlotPress(item)}
+              onPress={() => handleSlotPress(item)}
+              onLongPress={() => handleAdminReset(item)}
+              isAdmin={!!user?.isAdmin}
             />
           )}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Feather name="grid" size={36} color={C.textSecondary} />
-              <Text style={styles.emptyTitle}>No slots in this zone</Text>
+            <View style={styles.center}>
+              <Text style={{ color: C.textSecondary, fontFamily: "Inter_400Regular" }}>No slots found.</Text>
             </View>
           }
         />
       )}
 
-      {reservingId !== null && (
-        <View style={styles.reservingOverlay}>
-          <ActivityIndicator color="#fff" size="small" />
-          <Text style={styles.reservingText}>Reserving slot...</Text>
+      {user?.isAdmin && (
+        <View style={styles.adminHint}>
+          <Feather name="info" size={12} color={C.textSecondary} />
+          <Text style={styles.adminHintText}>Long-press any occupied/reserved slot to force reset</Text>
         </View>
       )}
     </View>
@@ -281,109 +292,139 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: C.surface,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: "#eee",
+    backgroundColor: "#fff",
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: C.background,
+    backgroundColor: "#F5F7FA",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: "Inter_700Bold",
     color: C.text,
   },
   headerSub: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: C.textSecondary,
-    marginTop: 2,
   },
-  legendRow: { flexDirection: "row", gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendRow: {
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "center",
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   statsBar: {
     flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: C.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+    backgroundColor: "#fff",
+    flexWrap: "wrap",
   },
   statChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: C.background,
+    backgroundColor: "#F5F7FA",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.text },
-  aiHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: C.infoLight,
+  chipDot: { width: 7, height: 7, borderRadius: 4 },
+  chipText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: C.text,
   },
-  aiHintText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.info },
-  grid: { padding: 16, gap: 0 },
+  grid: {
+    padding: 12,
+    paddingBottom: 80,
+  },
   slotCard: {
     flex: 1,
-    margin: 6,
-    minHeight: 90,
+    margin: 5,
+    aspectRatio: 1,
     borderRadius: 14,
-    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
     gap: 4,
-    padding: 8,
     position: "relative",
+    minHeight: 80,
   },
-  slotDisabled: { opacity: 0.65 },
+  slotDisabled: {
+    opacity: 0.6,
+  },
   slotSuggested: {
     borderWidth: 2,
-    shadowColor: Colors.light.info,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
   },
   aiLabel: {
     position: "absolute",
-    top: 5,
-    right: 5,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 4,
+    right: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: C.infoLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  slotNum: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  slotStatus: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  emptyState: { alignItems: "center", paddingVertical: 48, gap: 8, flex: 1 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  reservingOverlay: {
+  facultyBadge: {
     position: "absolute",
-    bottom: 20,
-    alignSelf: "center",
-    backgroundColor: C.text,
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
+    top: 4,
+    left: 4,
+    backgroundColor: "#8B5CF6",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
-  reservingText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#fff" },
+  facultyBadgeText: {
+    fontSize: 7,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  slotNum: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.3,
+  },
+  slotStatus: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  adminHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  adminHintText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+  },
 });
