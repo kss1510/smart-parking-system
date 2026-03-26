@@ -18,6 +18,7 @@ import QRCode from "react-native-qrcode-svg";
 import Colors from "@/constants/colors";
 import { customFetch, type ReserveSlotResponse } from "@workspace/api-client-react";
 import { useParking } from "@/context/ParkingContext";
+import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -29,6 +30,7 @@ export default function ConfirmParkingScreen() {
   }>();
   const insets = useSafeAreaInsets();
   const { showNotification, refreshZones, selectedVehicle, setSelectedVehicle } = useParking();
+  const { user } = useAuth();
 
   const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? "");
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ export default function ConfirmParkingScreen() {
     try {
       const result = await customFetch<ReserveSlotResponse>(`/api/slots/${slotId}/reserve`, {
         method: "POST",
-        body: JSON.stringify({ vehicleNumber: vehicleNumber.trim().toUpperCase() }),
+        body: JSON.stringify({ vehicleNumber: vehicleNumber.trim().toUpperCase(), userId: user?.userId }),
       });
       setSelectedVehicle(vehicleNumber.trim().toUpperCase());
       setQrToken(result.qrToken);

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { slotsTable, zonesTable, historyTable } from "@workspace/db/schema";
+import { slotsTable, zonesTable, historyTable, usersTable } from "@workspace/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -15,6 +15,7 @@ function slotToJson(s: typeof slotsTable.$inferSelect, zoneName: string) {
     status: s.status,
     slotType: s.slotType,
     vehicleNumber: s.vehicleNumber ?? null,
+    userId: s.userId ?? null,
     entryTime: s.entryTime?.toISOString() ?? null,
     reservedUntil: s.reservedUntil?.toISOString() ?? null,
     qrToken: s.qrToken ?? null,
@@ -58,6 +59,7 @@ router.get("/zone/:zoneId", async (req, res) => {
       await db.update(slotsTable).set({
         status: "FREE",
         vehicleNumber: null,
+        userId: null,
         reservedUntil: null,
         qrToken: null,
       }).where(eq(slotsTable.id, slot.id));
@@ -73,7 +75,7 @@ router.get("/zone/:zoneId", async (req, res) => {
 
 router.post("/:slotId/reserve", async (req, res) => {
   const slotId = parseInt(req.params.slotId, 10);
-  const { vehicleNumber } = req.body;
+  const { vehicleNumber, userId } = req.body;
 
   if (!vehicleNumber || !String(vehicleNumber).trim()) {
     return res.status(400).json({ error: "vehicleNumber is required" });
@@ -91,6 +93,13 @@ router.post("/:slotId/reserve", async (req, res) => {
     return res.status(409).json({ error: "Slot is occupied" });
   }
 
+  if (userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parseInt(String(userId), 10)));
+    if (user?.isBlockedUntil && user.isBlockedUntil > now) {
+      return res.status(403).json({ error: "Your account is blocked. Contact admin." });
+    }
+  }
+
   const reservedUntil = new Date(now.getTime() + 5 * 60 * 1000);
   const qrToken = randomUUID();
 
@@ -98,6 +107,7 @@ router.post("/:slotId/reserve", async (req, res) => {
     status: "RESERVED",
     reservedUntil,
     vehicleNumber: String(vehicleNumber).trim().toUpperCase(),
+    userId: userId ? parseInt(String(userId), 10) : null,
     entryTime: null,
     qrToken,
   }).where(eq(slotsTable.id, slotId)).returning();
@@ -123,7 +133,7 @@ router.post("/:slotId/confirm", async (req, res) => {
     return res.status(409).json({ error: "Slot is not reserved. Reserve it first." });
   }
   if (slot.reservedUntil && slot.reservedUntil < now) {
-    await db.update(slotsTable).set({ status: "FREE", reservedUntil: null, qrToken: null }).where(eq(slotsTable.id, slotId));
+    await db.update(slotsTable).set({ status: "FREE", reservedUntil: null, qrToken: null, userId: null }).where(eq(slotsTable.id, slotId));
     return res.status(409).json({ error: "Reservation expired" });
   }
 
@@ -159,16 +169,30 @@ router.post("/:slotId/exit", async (req, res) => {
   const durationMs = now.getTime() - entryTime.getTime();
   const durationMinutes = Math.ceil(durationMs / 60000);
 
-  const [history] = await db.insert(historyTable).values({
+  await db.insert(historyTable).values({
     vehicleNumber: slot.vehicleNumber!,
     slotId: slot.id,
+    userId: slot.userId ?? null,
     entryTime,
     exitTime: now,
-  }).returning();
+    pointsEarned: 10,
+  });
+
+  if (slot.userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, slot.userId));
+    if (user) {
+      await db.update(usersTable).set({
+        points: user.points + 10,
+        violationCount: 0,
+        isBlockedUntil: null,
+      }).where(eq(usersTable.id, user.id));
+    }
+  }
 
   await db.update(slotsTable).set({
     status: "FREE",
     vehicleNumber: null,
+    userId: null,
     entryTime: null,
     reservedUntil: null,
     qrToken: null,
@@ -177,25 +201,44 @@ router.post("/:slotId/exit", async (req, res) => {
   return res.json({
     message: "Parking exited successfully",
     duration: durationMinutes,
-    historyId: history.id,
+    pointsEarned: 10,
   });
 });
 
 router.post("/:slotId/reset", async (req, res) => {
   const slotId = parseInt(req.params.slotId, 10);
+  const [slot] = await db.select().from(slotsTable).where(eq(slotsTable.id, slotId));
+
+  if (!slot) return res.status(404).json({ error: "Slot not found" });
+
+  if (slot.status === "OCCUPIED" && slot.userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, slot.userId));
+    if (user) {
+      const newViolation = user.violationCount + 1;
+      let newPoints = Math.max(0, user.points - 5);
+      let isBlockedUntil: Date | null = user.isBlockedUntil;
+      if (newViolation >= 2) {
+        newPoints = 0;
+        isBlockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      }
+      await db.update(usersTable).set({
+        points: newPoints,
+        violationCount: newViolation,
+        isBlockedUntil,
+      }).where(eq(usersTable.id, user.id));
+    }
+  }
 
   const [updated] = await db.update(slotsTable).set({
     status: "FREE",
     vehicleNumber: null,
+    userId: null,
     entryTime: null,
     reservedUntil: null,
     qrToken: null,
   }).where(eq(slotsTable.id, slotId)).returning();
 
-  if (!updated) return res.status(404).json({ error: "Slot not found" });
-
   const [zone] = await db.select().from(zonesTable).where(eq(zonesTable.id, updated.zoneId));
-
   return res.json(slotToJson(updated, zone?.name ?? ""));
 });
 

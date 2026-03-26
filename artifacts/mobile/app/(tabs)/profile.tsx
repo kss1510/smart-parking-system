@@ -49,7 +49,11 @@ function MenuRow({ icon, label, subtitle, onPress, rightEl, danger }: MenuRowPro
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut, toggleAdmin } = useAuth();
+  const { user, signOut, toggleAdmin, refreshUser } = useAuth();
+
+  React.useEffect(() => {
+    refreshUser();
+  }, []);
   const { zones, refreshZones, showNotification } = useParking();
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top + 16;
 
@@ -104,12 +108,42 @@ export default function ProfileScreen() {
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
+        {user?.name && <Text style={styles.userName}>{user.name}</Text>}
         <Text style={styles.email}>{user?.email}</Text>
+        {user?.registrationId && (
+          <Text style={styles.regId}>ID: {user.registrationId}</Text>
+        )}
         <View style={styles.roleBadge}>
           <Feather name={user?.isAdmin ? "shield" : "user"} size={12} color={user?.isAdmin ? C.warning : C.textSecondary} />
           <Text style={[styles.roleText, user?.isAdmin && { color: C.warning }]}>
-            {user?.isAdmin ? "Admin Mode" : "User"}
+            {user?.isAdmin ? "Admin Mode" : "Student"}
           </Text>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Feather name="star" size={16} color="#F59E0B" />
+            <Text style={styles.statNum}>{user?.points ?? 0}</Text>
+            <Text style={styles.statLabel}>Points</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Feather name="alert-triangle" size={16} color={(user?.violationCount ?? 0) > 0 ? C.danger : C.textSecondary} />
+            <Text style={[styles.statNum, (user?.violationCount ?? 0) > 0 && { color: C.danger }]}>
+              {user?.violationCount ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Violations</Text>
+          </View>
+          {user?.vehicleNumber && (
+            <>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Feather name="truck" size={16} color={C.textSecondary} />
+                <Text style={styles.statNum}>{user.vehicleNumber}</Text>
+                <Text style={styles.statLabel}>Vehicle</Text>
+              </View>
+            </>
+          )}
         </View>
       </View>
 
@@ -171,6 +205,16 @@ export default function ProfileScreen() {
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push("/admin/scanner");
+                }}
+              />
+              <View style={styles.divider} />
+              <MenuRow
+                icon="bar-chart-2"
+                label="Admin Dashboard"
+                subtitle="Analytics, live vehicles & user management"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/admin/dashboard");
                 }}
               />
               <View style={styles.divider} />
@@ -264,12 +308,38 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: "#fff",
   },
-  email: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
+  userName: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
     color: C.text,
+    marginBottom: 2,
+  },
+  regId: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
     marginBottom: 6,
   },
+  email: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    color: C.textSecondary,
+    marginBottom: 4,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 16,
+    gap: 16,
+  },
+  statItem: { alignItems: "center", gap: 4, flex: 1 },
+  statDivider: { width: 1, height: 32, backgroundColor: C.border },
+  statNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",

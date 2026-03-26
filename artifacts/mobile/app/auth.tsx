@@ -20,6 +20,31 @@ import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+function InputField({
+  icon, label, placeholder, value, onChangeText, keyboardType, secureTextEntry, autoCapitalize, rightEl,
+}: any) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.inputRow}>
+        <Feather name={icon} size={18} color={C.textSecondary} style={styles.inputIcon} />
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          placeholder={placeholder}
+          placeholderTextColor={C.textSecondary}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          autoCapitalize={autoCapitalize ?? "none"}
+          autoCorrect={false}
+        />
+        {rightEl}
+      </View>
+    </View>
+  );
+}
+
 export default function AuthScreen() {
   const { signIn, signUp } = useAuth();
   const insets = useSafeAreaInsets();
@@ -27,6 +52,11 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [name, setName] = useState("");
+  const [registrationId, setRegistrationId] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [adminCode, setAdminCode] = useState("");
+  const [showAdminField, setShowAdminField] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -40,13 +70,23 @@ export default function AuthScreen() {
       if (isLogin) {
         await signIn(email.trim(), password);
       } else {
-        await signUp(email.trim(), password);
+        await signUp(email.trim(), password, {
+          name: name.trim() || undefined,
+          registrationId: registrationId.trim() || undefined,
+          vehicleNumber: vehicleNumber.trim() || undefined,
+          adminCode: adminCode.trim() || undefined,
+        });
       }
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setName(""); setRegistrationId(""); setVehicleNumber(""); setAdminCode(""); setShowAdminField(false);
   };
 
   return (
@@ -71,41 +111,57 @@ export default function AuthScreen() {
           <Text style={styles.cardTitle}>{isLogin ? "Welcome Back" : "Create Account"}</Text>
           <Text style={styles.cardSub}>{isLogin ? "Sign in to manage parking" : "Get started with CampusPark"}</Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputRow}>
-              <Feather name="mail" size={18} color={C.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="you@university.edu"
-                placeholderTextColor={C.textSecondary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-          </View>
+          {!isLogin && (
+            <InputField
+              icon="user" label="Full Name" placeholder="John Smith"
+              value={name} onChangeText={setName} autoCapitalize="words"
+            />
+          )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputRow}>
-              <Feather name="lock" size={18} color={C.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="••••••••"
-                placeholderTextColor={C.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPass}
-                autoCapitalize="none"
-              />
+          <InputField
+            icon="mail" label="Email" placeholder="you@university.edu"
+            value={email} onChangeText={setEmail} keyboardType="email-address"
+          />
+
+          {!isLogin && (
+            <InputField
+              icon="credit-card" label="Registration ID" placeholder="REG2024001 (optional)"
+              value={registrationId} onChangeText={setRegistrationId}
+            />
+          )}
+
+          {!isLogin && (
+            <InputField
+              icon="truck" label="Vehicle Number" placeholder="KA05AB1234 (optional)"
+              value={vehicleNumber} onChangeText={(v: string) => setVehicleNumber(v.toUpperCase())}
+            />
+          )}
+
+          <InputField
+            icon="lock" label="Password" placeholder="••••••••"
+            value={password} onChangeText={setPassword} secureTextEntry={!showPass}
+            rightEl={
               <Pressable onPress={() => setShowPass(!showPass)} style={styles.eyeBtn}>
                 <Feather name={showPass ? "eye-off" : "eye"} size={18} color={C.textSecondary} />
               </Pressable>
-            </View>
-          </View>
+            }
+          />
+
+          {!isLogin && (
+            <Pressable onPress={() => setShowAdminField(!showAdminField)} style={styles.adminToggle}>
+              <Feather name={showAdminField ? "chevron-up" : "shield"} size={14} color={C.textSecondary} />
+              <Text style={styles.adminToggleText}>
+                {showAdminField ? "Hide admin code" : "Register as admin (security staff)"}
+              </Text>
+            </Pressable>
+          )}
+
+          {!isLogin && showAdminField && (
+            <InputField
+              icon="shield" label="Admin Secret Code" placeholder="Enter code to register as admin"
+              value={adminCode} onChangeText={setAdminCode}
+            />
+          )}
 
           <Pressable
             onPress={handleSubmit}
@@ -119,7 +175,7 @@ export default function AuthScreen() {
             )}
           </Pressable>
 
-          <Pressable onPress={() => setIsLogin(!isLogin)} style={styles.switchBtn}>
+          <Pressable onPress={switchMode} style={styles.switchBtn}>
             <Text style={styles.switchText}>
               {isLogin ? "Don't have an account? " : "Already have an account? "}
               <Text style={{ color: C.tint, fontFamily: "Inter_600SemiBold" }}>
@@ -265,6 +321,18 @@ const styles = StyleSheet.create({
   demoText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+  },
+  adminToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  adminToggleText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
     color: C.textSecondary,
   },
 });

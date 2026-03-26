@@ -15,8 +15,24 @@ function generateToken(userId: number, email: string): string {
   return `tok_${payload}`;
 }
 
+function userResponse(user: typeof usersTable.$inferSelect, token: string) {
+  return {
+    token,
+    userId: user.id,
+    email: user.email,
+    isAdmin: user.isAdmin,
+    isFaculty: user.isFaculty,
+    name: user.name ?? null,
+    registrationId: user.registrationId ?? null,
+    vehicleNumber: user.vehicleNumber ?? null,
+    points: user.points,
+    violationCount: user.violationCount,
+    isBlockedUntil: user.isBlockedUntil?.toISOString() ?? null,
+  };
+}
+
 router.post("/register", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name, registrationId, vehicleNumber, adminCode } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password required" });
   }
@@ -26,14 +42,19 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ error: "Email already registered" });
   }
 
+  const isAdmin = adminCode === "ADMIN123";
+
   const [user] = await db.insert(usersTable).values({
     email,
     passwordHash: hashPassword(password),
-    isAdmin: false,
+    isAdmin,
+    name: name ? String(name).trim() : null,
+    registrationId: registrationId ? String(registrationId).trim() : null,
+    vehicleNumber: vehicleNumber ? String(vehicleNumber).trim().toUpperCase() : null,
   }).returning();
 
   const token = generateToken(user.id, user.email);
-  return res.status(201).json({ token, userId: user.id, email: user.email, isAdmin: user.isAdmin });
+  return res.status(201).json(userResponse(user, token));
 });
 
 router.post("/login", async (req, res) => {
@@ -47,8 +68,39 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
+  const now = new Date();
+  if (user.isBlockedUntil && user.isBlockedUntil > now) {
+    return res.status(403).json({
+      error: `Account blocked until ${user.isBlockedUntil.toISOString()}. Contact admin.`,
+    });
+  }
+
   const token = generateToken(user.id, user.email);
-  return res.json({ token, userId: user.id, email: user.email, isAdmin: user.isAdmin });
+  return res.json(userResponse(user, token));
+});
+
+router.get("/profile/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const token = generateToken(user.id, user.email);
+  return res.json(userResponse(user, token));
+});
+
+router.patch("/profile/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const { name, registrationId, vehicleNumber } = req.body;
+
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = String(name).trim() || null;
+  if (registrationId !== undefined) updates.registrationId = String(registrationId).trim() || null;
+  if (vehicleNumber !== undefined) updates.vehicleNumber = String(vehicleNumber).trim().toUpperCase() || null;
+
+  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const token = generateToken(user.id, user.email);
+  return res.json(userResponse(user, token));
 });
 
 export default router;
