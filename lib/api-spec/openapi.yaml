@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Smart Campus Parking API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: zones
+    description: Parking zones
+  - name: slots
+    description: Parking slots
+  - name: parking
+    description: Parking sessions
+  - name: history
+    description: Parking history
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,289 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /zones:
+    get:
+      operationId: getZones
+      tags: [zones]
+      summary: Get all parking zones
+      responses:
+        "200":
+          description: Zones with slot stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+
+  /zones/{zoneId}/slots:
+    get:
+      operationId: getSlotsByZone
+      tags: [slots]
+      summary: Get slots for a zone
+      parameters:
+        - name: zoneId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slot"
+
+  /slots/suggest:
+    get:
+      operationId: suggestSlot
+      tags: [slots]
+      summary: AI suggest best available slot
+      responses:
+        "200":
+          description: Suggested slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+        "404":
+          description: No slots available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /slots/{slotId}/reserve:
+    post:
+      operationId: reserveSlot
+      tags: [slots]
+      summary: Reserve a slot for 30 seconds
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slot reserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+        "409":
+          description: Slot not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /slots/{slotId}/confirm:
+    post:
+      operationId: confirmParking
+      tags: [slots]
+      summary: Confirm parking (OCCUPIED)
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmParkingBody"
+      responses:
+        "200":
+          description: Parking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingSession"
+        "409":
+          description: Slot not reserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /slots/{slotId}/exit:
+    post:
+      operationId: exitParking
+      tags: [slots]
+      summary: Exit parking slot
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exit successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExitResponse"
+        "404":
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /slots/{slotId}/reset:
+    post:
+      operationId: resetSlot
+      tags: [slots]
+      summary: Admin reset slot to FREE
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slot reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+
+  /parking/active:
+    get:
+      operationId: getActiveParking
+      tags: [parking]
+      summary: Get current active parking session
+      parameters:
+        - name: vehicleNumber
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Active session or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActiveParkingResponse"
+
+  /history:
+    get:
+      operationId: getParkingHistory
+      tags: [history]
+      summary: Get recent parking history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        "200":
+          description: History records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryRecord"
+
+  /admin/slots:
+    post:
+      operationId: addSlot
+      tags: [slots]
+      summary: Admin add a new slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddSlotBody"
+      responses:
+        "201":
+          description: Slot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+
+  /admin/slots/{slotId}:
+    delete:
+      operationId: deleteSlot
+      tags: [slots]
+      summary: Admin delete a slot
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slot deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +322,153 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    AuthCredentials:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        userId:
+          type: integer
+        email:
+          type: string
+        isAdmin:
+          type: boolean
+      required: [token, userId, email, isAdmin]
+
+    Zone:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        totalSlots:
+          type: integer
+        freeSlots:
+          type: integer
+        occupiedSlots:
+          type: integer
+        reservedSlots:
+          type: integer
+      required: [id, name, totalSlots, freeSlots, occupiedSlots, reservedSlots]
+
+    Slot:
+      type: object
+      properties:
+        id:
+          type: integer
+        zoneId:
+          type: integer
+        zoneName:
+          type: string
+        slotNumber:
+          type: string
+        status:
+          type: string
+          enum: [FREE, RESERVED, OCCUPIED]
+        vehicleNumber:
+          type: string
+          nullable: true
+        entryTime:
+          type: string
+          nullable: true
+        reservedUntil:
+          type: string
+          nullable: true
+      required: [id, zoneId, zoneName, slotNumber, status]
+
+    ParkingSession:
+      type: object
+      properties:
+        slotId:
+          type: integer
+        slotNumber:
+          type: string
+        zoneName:
+          type: string
+        vehicleNumber:
+          type: string
+        entryTime:
+          type: string
+      required: [slotId, slotNumber, zoneName, vehicleNumber, entryTime]
+
+    ExitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        duration:
+          type: integer
+        historyId:
+          type: integer
+      required: [message, duration, historyId]
+
+    ActiveParkingResponse:
+      type: object
+      properties:
+        session:
+          $ref: "#/components/schemas/ParkingSession"
+          nullable: true
+      required: [session]
+
+    HistoryRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        vehicleNumber:
+          type: string
+        slotNumber:
+          type: string
+        zoneName:
+          type: string
+        entryTime:
+          type: string
+        exitTime:
+          type: string
+          nullable: true
+        durationMinutes:
+          type: integer
+          nullable: true
+      required: [id, vehicleNumber, slotNumber, zoneName, entryTime]
+
+    ConfirmParkingBody:
+      type: object
+      properties:
+        vehicleNumber:
+          type: string
+      required: [vehicleNumber]
+
+    AddSlotBody:
+      type: object
+      properties:
+        zoneId:
+          type: integer
+        slotNumber:
+          type: string
+      required: [zoneId, slotNumber]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]

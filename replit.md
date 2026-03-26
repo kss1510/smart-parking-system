@@ -91,6 +91,47 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+### `artifacts/mobile` (`@workspace/mobile`)
+
+Expo React Native mobile app: Smart Campus Parking Management System.
+
+- Entry: `app/_layout.tsx` — root layout, providers (Auth, Parking, QueryClient), routing guard
+- Screens:
+  - `app/auth.tsx` — Login / Register screen
+  - `app/(tabs)/index.tsx` — Dashboard: zones overview, AI suggest, active parking alert
+  - `app/(tabs)/history.tsx` — Parking history records
+  - `app/(tabs)/profile.tsx` — User profile + Admin mode toggle
+  - `app/zone/[id].tsx` — Zone detail: slot grid with live status + reservation
+  - `app/parking/confirm.tsx` — 30-second reservation countdown + vehicle entry
+  - `app/parking/active.tsx` — Live parking timer + exit parking
+- Context:
+  - `context/AuthContext.tsx` — user auth state + token
+  - `context/ParkingContext.tsx` — zones, active session, offline cache, notifications
+- Constants: `constants/colors.ts` — design system palette
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+## Database Schema
+
+- `zones` — id, name (A, B, C) — seeded with 3 zones
+- `slots` — id, zone_id, slot_number, status (FREE/RESERVED/OCCUPIED), vehicle_number, entry_time, reserved_until — seeded with 30 slots (10 per zone)
+- `history` — id, vehicle_number, slot_id, entry_time, exit_time
+- `users` — id, email, password_hash, is_admin, created_at
+
+## API Routes
+
+- `POST /api/auth/register` — register user
+- `POST /api/auth/login` — login user
+- `GET /api/zones` — get all zones with slot stats
+- `GET /api/zones/:zoneId/slots` — get slots for a zone (auto-releases expired reservations)
+- `GET /api/slots/suggest` — AI suggest best available slot
+- `POST /api/slots/:slotId/reserve` — reserve slot for 30 seconds
+- `POST /api/slots/:slotId/confirm` — confirm parking (set OCCUPIED)
+- `POST /api/slots/:slotId/exit` — exit parking (set FREE + save history)
+- `POST /api/slots/:slotId/reset` — admin force reset slot to FREE
+- `GET /api/parking/active` — get currently active parking session
+- `GET /api/history` — get recent parking history
+- `POST /api/admin/slots` — admin add slot
+- `DELETE /api/admin/slots/:slotId` — admin delete slot

@@ -5,7 +5,8 @@
  * Smart Campus Parking API
  * OpenAPI spec version: 0.1.0
  */
+import type { ParkingSession } from "./parkingSession";
 
-export interface HealthStatus {
-  status: string;
+export interface ActiveParkingResponse {
+  session: ParkingSession | null;
 }
