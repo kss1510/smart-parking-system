@@ -19,8 +19,8 @@ const FRAME_SIZE = 220;
 function DetailRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.detailRow}>
-      <View style={styles.detailIconWrap}>
-        <Feather name={icon as any} size={14} color={C.tint} />
+      <View style={[styles.menuIcon, { backgroundColor: C.tint + "12" }]}>
+        <Feather name={icon as any} size={15} color={C.tint} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.detailLabel}>{label}</Text>
@@ -61,7 +61,7 @@ export default function AdminScannerScreen() {
         body: JSON.stringify({ token: trimmed }),
       });
       setResult(data);
-      showNotification(`Entry confirmed: ${data.vehicleNumber} → Slot ${data.slotNumber}`);
+      showNotification(`Entry confirmed: ${data.vehicleNumber}`);
       await refreshZones();
     } catch (e: any) {
       setError(e?.message ?? "Verification failed.");
@@ -82,76 +82,86 @@ export default function AdminScannerScreen() {
     setToken(""); setResult(null); setError(null); setScanned(false);
   };
 
-  const handleRequestPermission = async () => {
-    const res = await requestPermission();
-    if (!res.granted) {
-      Alert.alert("Camera Required", "Please enable camera access in your device settings.");
-    }
-  };
-
+  // Success result screen
   if (result) {
     return (
-      <ScrollView style={[styles.screen, { backgroundColor: C.background }]}
-        contentContainerStyle={[styles.container, { paddingTop: topPad + 16, paddingBottom: insets.bottom + 100 }]}>
-        <View style={styles.header}>
-          <View style={styles.headerIcon}><Feather name="camera" size={18} color="#fff" /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>QR Scanner</Text>
-            <Text style={styles.headerSub}>Security Guard Access</Text>
+      <View style={styles.screen}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 100 }]}>
+          <View style={[styles.heroHeader, { paddingTop: topPad + 20 }]}>
+            <View style={styles.heroTop}>
+              <View style={styles.heroIconWrap}>
+                <Feather name="camera" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroTitle}>QR Scanner</Text>
+                <Text style={styles.heroSub}>Security Guard Access</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.adminBadge}>
-            <Feather name="shield" size={12} color={C.gold} />
-            <Text style={styles.adminBadgeText}>Admin</Text>
-          </View>
-        </View>
 
-        <View style={styles.successCard}>
-          <View style={styles.successIcon}>
-            <Feather name="check-circle" size={48} color={C.statusFree} />
+          <View style={styles.body}>
+            <View style={styles.successIcon}>
+              <Feather name="check-circle" size={52} color={C.statusFree} />
+            </View>
+            <Text style={styles.successTitle}>Entry Confirmed!</Text>
+            <Text style={styles.successSub}>Vehicle successfully checked in</Text>
+
+            <Text style={styles.sectionLabel}>Entry Details</Text>
+            <View style={styles.sectionCard}>
+              <DetailRow icon="truck" label="Vehicle Number" value={result.vehicleNumber} />
+              <View style={styles.divider} />
+              <DetailRow icon="map-pin" label="Slot Assigned" value={`Zone ${result.zoneName} · Slot ${result.slotNumber}`} />
+              <View style={styles.divider} />
+              <DetailRow icon="clock" label="Entry Time" value={new Date(result.entryTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} />
+              {(result as any).userName && (
+                <>
+                  <View style={styles.divider} />
+                  <DetailRow icon="user" label="Student Name" value={(result as any).userName} />
+                </>
+              )}
+              {(result as any).registrationId && (
+                <>
+                  <View style={styles.divider} />
+                  <DetailRow icon="credit-card" label="Registration ID" value={(result as any).registrationId} />
+                </>
+              )}
+            </View>
+
+            <Pressable onPress={handleReset} style={styles.scanNextBtn}>
+              <Feather name="refresh-cw" size={18} color="#fff" />
+              <Text style={styles.scanNextBtnText}>Scan Next Vehicle</Text>
+            </Pressable>
           </View>
-          <Text style={styles.successTitle}>Entry Confirmed!</Text>
-          <Text style={styles.successSub}>Vehicle successfully checked in</Text>
-          <View style={styles.detailGrid}>
-            <DetailRow icon="truck" label="Vehicle" value={result.vehicleNumber} />
-            <View style={styles.detailDivider} />
-            <DetailRow icon="map-pin" label="Slot Assigned" value={`Zone ${result.zoneName} · Slot ${result.slotNumber}`} />
-            <View style={styles.detailDivider} />
-            <DetailRow icon="clock" label="Entry Time" value={new Date(result.entryTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} />
-            {(result as any).userName && (<><View style={styles.detailDivider} /><DetailRow icon="user" label="Student" value={(result as any).userName} /></>)}
-            {(result as any).registrationId && (<><View style={styles.detailDivider} /><DetailRow icon="credit-card" label="Reg. ID" value={(result as any).registrationId} /></>)}
-          </View>
-          <Pressable onPress={handleReset} style={styles.scanNextBtn}>
-            <Feather name="refresh-cw" size={16} color={C.tint} />
-            <Text style={styles.scanNextText}>Scan Next Vehicle</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, paddingHorizontal: 20 }]}>
-        <View style={styles.headerIcon}><Feather name="camera" size={18} color="#fff" /></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Scan Student QR</Text>
-          <Text style={styles.headerSub}>Point camera at student's QR code</Text>
+    <View style={styles.screen}>
+      {/* Header */}
+      <View style={[styles.heroHeader, { paddingTop: topPad + 20 }]}>
+        <View style={styles.heroTop}>
+          <View style={styles.heroIconWrap}>
+            <Feather name="camera" size={22} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroTitle}>Scan Student QR</Text>
+            <Text style={styles.heroSub}>Point camera at student's QR code</Text>
+          </View>
         </View>
-        <View style={styles.adminBadge}>
-          <Feather name="shield" size={12} color={C.gold} />
-          <Text style={styles.adminBadgeText}>Admin</Text>
-        </View>
-      </View>
 
-      <View style={styles.modeToggle}>
-        <Pressable onPress={() => { setMode("camera"); setError(null); }} style={[styles.modeBtn, mode === "camera" && styles.modeBtnActive]}>
-          <Feather name="camera" size={14} color={mode === "camera" ? "#fff" : C.textSecondary} />
-          <Text style={[styles.modeBtnText, mode === "camera" && styles.modeBtnTextActive]}>Camera</Text>
-        </Pressable>
-        <Pressable onPress={() => { setMode("manual"); setError(null); }} style={[styles.modeBtn, mode === "manual" && styles.modeBtnActive]}>
-          <Feather name="edit-3" size={14} color={mode === "manual" ? "#fff" : C.textSecondary} />
-          <Text style={[styles.modeBtnText, mode === "manual" && styles.modeBtnTextActive]}>Manual</Text>
-        </Pressable>
+        {/* Mode toggle in header */}
+        <View style={styles.modeToggle}>
+          <Pressable onPress={() => { setMode("camera"); setError(null); }} style={[styles.modeBtn, mode === "camera" && styles.modeBtnActive]}>
+            <Feather name="camera" size={14} color={mode === "camera" ? "#fff" : "rgba(255,255,255,0.6)"} />
+            <Text style={[styles.modeBtnText, mode === "camera" && styles.modeBtnTextActive]}>Camera</Text>
+          </Pressable>
+          <Pressable onPress={() => { setMode("manual"); setError(null); }} style={[styles.modeBtn, mode === "manual" && styles.modeBtnActive]}>
+            <Feather name="edit-3" size={14} color={mode === "manual" ? "#fff" : "rgba(255,255,255,0.6)"} />
+            <Text style={[styles.modeBtnText, mode === "manual" && styles.modeBtnTextActive]}>Manual</Text>
+          </Pressable>
+        </View>
       </View>
 
       {mode === "camera" ? (
@@ -161,7 +171,7 @@ export default function AdminScannerScreen() {
               <Feather name="camera-off" size={40} color={C.textSecondary} />
               <Text style={styles.permissionTitle}>Camera Access Needed</Text>
               <Text style={styles.permissionSub}>Grant camera permission to scan QR codes</Text>
-              <Pressable onPress={handleRequestPermission} style={styles.permissionBtn}>
+              <Pressable onPress={requestPermission} style={styles.permissionBtn}>
                 <Text style={styles.permissionBtnText}>Enable Camera</Text>
               </Pressable>
             </View>
@@ -200,37 +210,62 @@ export default function AdminScannerScreen() {
           )}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.manualContainer, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
-          <View style={styles.heroCard}>
-            <View style={styles.heroIcon}><Feather name="hash" size={28} color={C.tint} /></View>
-            <Text style={styles.heroTitle}>Enter QR Token</Text>
-            <Text style={styles.heroSub}>Paste the token shown on the student's QR screen</Text>
-          </View>
-          <View style={styles.inputCard}>
-            <Text style={styles.inputLabel}>QR Token</Text>
+        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sectionLabel}>QR Token</Text>
+          <View style={styles.sectionCard}>
             <View style={styles.inputRow}>
-              <Feather name="hash" size={16} color={C.textSecondary} />
+              <View style={[styles.menuIcon, { backgroundColor: C.tint + "12" }]}>
+                <Feather name="hash" size={17} color={C.tint} />
+              </View>
               <TextInput
-                style={styles.input} placeholder="e.g. a3f1c2d4-8b9e-4f2a-..."
-                placeholderTextColor={C.textSecondary} value={token}
-                onChangeText={setToken} autoCapitalize="none" autoCorrect={false}
-                returnKeyType="done" onSubmitEditing={() => handleVerify()}
+                style={styles.input}
+                placeholder="Paste token from student's QR screen..."
+                placeholderTextColor={C.textSecondary}
+                value={token}
+                onChangeText={setToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={() => handleVerify()}
               />
-              {token.length > 0 && <Pressable onPress={() => setToken("")}><Feather name="x" size={16} color={C.textSecondary} /></Pressable>}
+              {token.length > 0 && (
+                <Pressable onPress={() => setToken("")} style={{ padding: 4 }}>
+                  <Feather name="x" size={16} color={C.textSecondary} />
+                </Pressable>
+              )}
             </View>
             {error && (
-              <View style={styles.errorBanner}>
-                <Feather name="alert-circle" size={14} color={C.danger} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
+              <>
+                <View style={styles.divider} />
+                <View style={styles.errorRow}>
+                  <Feather name="alert-circle" size={15} color={C.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              </>
             )}
           </View>
-          <Pressable onPress={() => handleVerify()} disabled={loading || !token.trim()}
-            style={({ pressed }) => [styles.verifyBtn, { opacity: pressed || loading || !token.trim() ? 0.7 : 1 }]}>
-            {loading ? <ActivityIndicator color="#fff" /> : (
-              <><Feather name="check-circle" size={20} color="#fff" /><Text style={styles.verifyBtnText}>Verify & Allow Entry</Text></>
+
+          <Pressable
+            onPress={() => handleVerify()}
+            disabled={loading || !token.trim()}
+            style={({ pressed }) => [styles.verifyBtn, { opacity: pressed || loading || !token.trim() ? 0.7 : 1 }]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Feather name="check-circle" size={20} color="#fff" />
+                <Text style={styles.verifyBtnText}>Verify & Allow Entry</Text>
+              </>
             )}
           </Pressable>
+
+          <View style={styles.hintCard}>
+            <Feather name="info" size={15} color={C.tint} />
+            <Text style={styles.hintText}>
+              The student shows their QR token on the Parking tab. Paste or type it here to confirm their entry and increment their priority score by +1.
+            </Text>
+          </View>
         </ScrollView>
       )}
     </View>
@@ -238,21 +273,18 @@ export default function AdminScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  container: { paddingHorizontal: 20 },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingBottom: 18, backgroundColor: C.tint,
-  },
-  headerIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
-  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
-  adminBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  adminBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  modeToggle: { flexDirection: "row", marginHorizontal: 16, marginVertical: 12, backgroundColor: C.surface, borderRadius: 12, padding: 4, gap: 4 },
-  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
-  modeBtnActive: { backgroundColor: C.tint },
-  modeBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  screen: { flex: 1, backgroundColor: C.background },
+  container: {},
+  body: { paddingHorizontal: 18, paddingTop: 16 },
+  heroHeader: { backgroundColor: C.tint, paddingHorizontal: 20, paddingBottom: 20 },
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
+  heroIconWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
+  heroSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.62)", marginTop: 2 },
+  modeToggle: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 12, padding: 3, gap: 3 },
+  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10 },
+  modeBtnActive: { backgroundColor: "rgba(255,255,255,0.2)" },
+  modeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.6)" },
   modeBtnTextActive: { color: "#fff" },
   cameraContainer: { flex: 1, position: "relative" },
   permissionBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12 },
@@ -274,29 +306,24 @@ const styles = StyleSheet.create({
   scanErrorText: { color: "#fff", fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "center" },
   scanRetryBtn: { borderWidth: 1.5, borderColor: "#fff", borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8, marginTop: 4 },
   scanRetryText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  manualContainer: { paddingHorizontal: 20, paddingTop: 8 },
-  heroCard: { backgroundColor: C.tint + "10", borderRadius: 20, padding: 24, alignItems: "center", borderWidth: 1, borderColor: C.tint + "20", marginBottom: 20 },
-  heroIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.tint + "20", alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  heroTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 6 },
-  heroSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
-  inputCard: { backgroundColor: C.surface, borderRadius: 16, padding: 20, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  inputLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 12 },
-  inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border, gap: 10 },
+  sectionLabel: { fontSize: 11, fontFamily: "Inter_700Bold", color: C.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, marginLeft: 4, marginTop: 4 },
+  sectionCard: { backgroundColor: C.surface, borderRadius: 16, overflow: "hidden", marginBottom: 18, borderWidth: 1, borderColor: C.border, shadowColor: "#004D36", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
+  menuIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  inputRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   input: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
-  errorBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.dangerLight, borderRadius: 10, padding: 12, marginTop: 12 },
+  errorRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14 },
   errorText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.danger, flex: 1 },
-  verifyBtn: { backgroundColor: C.tint, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10, marginBottom: 20 },
+  verifyBtn: { backgroundColor: C.tint, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10, marginBottom: 16 },
   verifyBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  successCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, alignItems: "center", margin: 20, borderWidth: 1, borderColor: C.statusFree + "40", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-  successIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: C.statusFree + "15", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  successTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 },
-  successSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, marginBottom: 24 },
-  detailGrid: { width: "100%", backgroundColor: C.background, borderRadius: 14, padding: 16, marginBottom: 20 },
-  detailRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
-  detailDivider: { height: 1, backgroundColor: C.borderLight, marginVertical: 8 },
-  detailIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.tint + "15", alignItems: "center", justifyContent: "center" },
+  hintCard: { flexDirection: "row", gap: 10, backgroundColor: C.tint + "08", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.tint + "20" },
+  hintText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 18 },
+  successIcon: { alignItems: "center", paddingVertical: 28 },
+  successTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center", marginBottom: 4 },
+  successSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", marginBottom: 20 },
+  detailRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   detailLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
-  detailValue: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  scanNextBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.tint, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
-  scanNextText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.tint },
+  detailValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginTop: 2 },
+  scanNextBtn: { backgroundColor: C.tint, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10 },
+  scanNextBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

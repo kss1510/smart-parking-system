@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { customFetch } from "@workspace/api-client-react";
 import { useParking } from "@/context/ParkingContext";
@@ -32,15 +33,33 @@ interface SlotInfo {
   status: string; slotType: string; vehicleNumber: string | null;
 }
 
-function SummaryCard({ label, value, color, icon }: { label: string; value: number; color: string; icon: string }) {
+interface MenuRowProps {
+  icon: string;
+  label: string;
+  subtitle?: string;
+  rightEl?: React.ReactNode;
+  onPress?: () => void;
+  danger?: boolean;
+  accent?: string;
+}
+
+function MenuRow({ icon, label, subtitle, rightEl, onPress, danger, accent }: MenuRowProps) {
+  const iconColor = danger ? C.danger : accent ?? C.tint;
+  const iconBg = danger ? C.dangerLight : (accent ? accent + "15" : C.tint + "12");
   return (
-    <View style={[styles.summaryCard, { borderLeftColor: color }]}>
-      <View style={[styles.summaryIcon, { backgroundColor: color + "15" }]}>
-        <Feather name={icon as any} size={16} color={color} />
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.75 : 1 }]}
+    >
+      <View style={[styles.menuIcon, { backgroundColor: iconBg }]}>
+        <Feather name={icon as any} size={17} color={iconColor} />
       </View>
-      <Text style={styles.summaryVal}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.menuLabel, danger && { color: C.danger }]}>{label}</Text>
+        {subtitle && <Text style={styles.menuSub}>{subtitle}</Text>}
+      </View>
+      {rightEl !== undefined ? rightEl : <Feather name="chevron-right" size={17} color={C.border} />}
+    </Pressable>
   );
 }
 
@@ -76,11 +95,10 @@ export default function AdminDashboardScreen() {
   }, []);
 
   useEffect(() => { fetchData(); }, []);
-
   const onRefresh = () => { setRefreshing(true); fetchData(); refreshZones(); };
 
   const handleForceFree = async (slotId: number, vehicleNumber: string) => {
-    Alert.alert("Force Free Slot", `Release slot for ${vehicleNumber}? A violation penalty will be applied.`, [
+    Alert.alert("Force Free Slot", `Release slot for ${vehicleNumber}? A penalty will be applied to the user.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Force Free", style: "destructive",
@@ -89,7 +107,7 @@ export default function AdminDashboardScreen() {
             await customFetch(`/api/admin/force-free/${slotId}`, { method: "POST" });
             showNotification("Slot force-freed. Penalty applied.");
             fetchData(); refreshZones();
-          } catch (e: any) { showNotification(e?.message ?? "Failed to force free slot"); }
+          } catch (e: any) { showNotification(e?.message ?? "Failed"); }
         },
       },
     ]);
@@ -105,7 +123,7 @@ export default function AdminDashboardScreen() {
             await customFetch(`/api/admin/block-user/${userId}`, { method: "POST" });
             showNotification("User blocked for 1 day.");
             fetchData();
-          } catch { showNotification("Failed to block user"); }
+          } catch { showNotification("Failed"); }
         },
       },
     ]);
@@ -120,12 +138,12 @@ export default function AdminDashboardScreen() {
   };
 
   const filteredVehicles = vehicles.filter(v => {
-    const matchesSearch = !search.trim() || (
+    const matchSearch = !search.trim() || (
       v.vehicleNumber.toLowerCase().includes(search.toLowerCase()) ||
       (v.userName ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (v.registrationId ?? "").toLowerCase().includes(search.toLowerCase())
     );
-    return matchesSearch && (!zoneFilter || v.zoneName === zoneFilter);
+    return matchSearch && (!zoneFilter || v.zoneName === zoneFilter);
   });
 
   const zones = [...new Set(vehicles.map(v => v.zoneName))];
@@ -138,358 +156,383 @@ export default function AdminDashboardScreen() {
     return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
   };
 
-  const priorityLabel = (score: number) => {
-    if (score >= 0) return { label: "Normal", color: C.statusFree };
-    if (score === -1) return { label: "Low Priority", color: C.statusReserved };
-    return { label: "Restricted", color: C.statusOccupied };
-  };
-
   return (
-    <View style={[styles.screen, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <View style={styles.headerIcon}>
-          <Feather name="shield" size={18} color="#fff" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Admin Dashboard</Text>
-          <Text style={styles.headerSub}>Live monitoring & analytics</Text>
-        </View>
-        <Pressable onPress={onRefresh} style={styles.refreshBtn}>
-          <Feather name="refresh-cw" size={17} color="rgba(255,255,255,0.75)" />
-        </Pressable>
-      </View>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 100 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Header */}
+        <View style={[styles.heroHeader, { paddingTop: topPad + 20 }]}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroIconWrap}>
+              <Feather name="bar-chart-2" size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroTitle}>Admin Dashboard</Text>
+              <Text style={styles.heroSub}>Live monitoring & analytics</Text>
+            </View>
+            <Pressable onPress={onRefresh} style={styles.refreshBtn}>
+              <Feather name="refresh-cw" size={16} color="rgba(255,255,255,0.75)" />
+            </Pressable>
+          </View>
 
-      <View style={styles.subTabs}>
-        {(["overview", "vehicles", "users"] as Tab[]).map(tab => (
-          <Pressable key={tab} onPress={() => setActiveTab(tab)}
-            style={[styles.subTab, activeTab === tab && styles.subTabActive]}>
-            <Text style={[styles.subTabText, activeTab === tab && styles.subTabTextActive]}>
-              {tab === "overview" ? "Overview" : tab === "vehicles" ? `Live (${vehicles.length})` : "Users"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={C.tint} />
-          <Text style={styles.loadingText}>Loading dashboard...</Text>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
-          showsVerticalScrollIndicator={false}
-        >
-          {activeTab === "overview" && analytics && (
-            <>
-              {analytics.predictiveAlerts.length > 0 && (
-                <View style={styles.alertBanner}>
-                  <Feather name="alert-triangle" size={16} color="#92400E" />
-                  {analytics.predictiveAlerts.map((a, i) => (
-                    <Text key={i} style={styles.alertText}>{a}</Text>
-                  ))}
-                </View>
-              )}
-
-              <Text style={styles.sectionLabel}>Summary</Text>
-              <View style={styles.summaryGrid}>
-                <SummaryCard label="Total" value={analytics.summary.totalSlots} color={C.tint} icon="grid" />
-                <SummaryCard label="Free" value={analytics.summary.freeSlots} color={C.statusFree} icon="check-circle" />
-                <SummaryCard label="Occupied" value={analytics.summary.occupiedSlots} color={C.statusOccupied} icon="car" />
-                <SummaryCard label="Reserved" value={analytics.summary.reservedSlots} color={C.statusReserved} icon="clock" />
-              </View>
-
-              <Text style={styles.sectionLabel}>Zone Congestion</Text>
-              {analytics.zoneStats.map(zone => (
-                <View key={zone.zoneName} style={styles.zoneBar}>
-                  <View style={styles.zoneBarHeader}>
-                    <Text style={styles.zoneBarLabel}>Zone {zone.zoneName}</Text>
-                    <Text style={[styles.zoneBarPct, {
-                      color: zone.usagePct >= 80 ? C.statusOccupied : zone.usagePct >= 50 ? C.statusReserved : C.statusFree
-                    }]}>{zone.usagePct}%</Text>
+          {analytics && (
+            <View style={styles.heroStats}>
+              {[
+                { num: analytics.summary.totalSlots, lbl: "Total", color: "#fff" },
+                { num: analytics.summary.freeSlots, lbl: "Free", color: "#6EFFC4" },
+                { num: analytics.summary.occupiedSlots, lbl: "Occupied", color: "#FF8080" },
+                { num: analytics.summary.reservedSlots, lbl: "Reserved", color: "#FFD86E" },
+              ].map((s, i, arr) => (
+                <React.Fragment key={s.lbl}>
+                  <View style={styles.heroStat}>
+                    <Text style={[styles.heroStatNum, { color: s.color }]}>{s.num}</Text>
+                    <Text style={styles.heroStatLbl}>{s.lbl}</Text>
                   </View>
-                  <View style={styles.zoneBarTrack}>
-                    <View style={[styles.zoneBarFill, {
-                      width: `${zone.usagePct}%` as any,
-                      backgroundColor: zone.usagePct >= 80 ? C.statusOccupied : zone.usagePct >= 50 ? C.statusReserved : C.statusFree,
-                    }]} />
-                  </View>
-                  <View style={styles.zoneBarStats}>
-                    <Text style={styles.zoneBarStat}>{zone.free} free</Text>
-                    <Text style={styles.zoneBarStat}>{zone.occupied} occupied</Text>
-                    <Text style={styles.zoneBarStat}>{zone.reserved} reserved</Text>
-                  </View>
-                </View>
+                  {i < arr.length - 1 && <View style={styles.heroStatDivider} />}
+                </React.Fragment>
               ))}
-
-              <Text style={styles.sectionLabel}>Slot Heatmap</Text>
-              <View style={styles.heatmapGrid}>
-                {allSlots.length > 0 ? allSlots.map(slot => {
-                  let color = C.statusFree;
-                  if (slot.slotType === "FACULTY") color = "#8B5CF6";
-                  else if (slot.status === "OCCUPIED") color = C.statusOccupied;
-                  else if (slot.status === "RESERVED") color = C.statusReserved;
-                  const textColor = (slot.status === "FREE" && slot.slotType !== "FACULTY") ? "#166534" : "#fff";
-                  return (
-                    <View key={slot.id} style={[styles.heatCell, { backgroundColor: color }]}>
-                      <Text style={[styles.heatCellText, { color: textColor }]}>{slot.slotNumber}</Text>
-                    </View>
-                  );
-                }) : null}
-              </View>
-              <View style={styles.legendRow}>
-                {[
-                  { color: C.statusFree, label: "Free" },
-                  { color: C.statusReserved, label: "Reserved" },
-                  { color: C.statusOccupied, label: "Occupied" },
-                  { color: "#8B5CF6", label: "Faculty" },
-                ].map(l => (
-                  <View key={l.label} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: l.color }]} />
-                    <Text style={styles.legendLabel}>{l.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
+            </View>
           )}
+        </View>
 
-          {activeTab === "vehicles" && (
+        {/* Tab Switcher */}
+        <View style={styles.body}>
+          <View style={styles.tabRow}>
+            {(["overview", "vehicles", "users"] as Tab[]).map(tab => (
+              <Pressable key={tab} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveTab(tab); }}
+                style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}>
+                <Text style={[styles.tabBtnText, activeTab === tab && styles.tabBtnTextActive]}>
+                  {tab === "overview" ? "Overview" : tab === "vehicles" ? `Live (${vehicles.length})` : "Users"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color={C.tint} />
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
+          ) : (
             <>
-              <View style={styles.searchRow}>
-                <View style={styles.searchBox}>
-                  <Feather name="search" size={16} color={C.textSecondary} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search vehicle, name, reg ID..."
-                    placeholderTextColor={C.textSecondary}
-                    value={search}
-                    onChangeText={setSearch}
-                  />
-                  {search.length > 0 && (
-                    <Pressable onPress={() => setSearch("")}>
-                      <Feather name="x" size={16} color={C.textSecondary} />
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                <Pressable onPress={() => setZoneFilter(null)} style={[styles.filterChip, !zoneFilter && styles.filterChipActive]}>
-                  <Text style={[styles.filterChipText, !zoneFilter && styles.filterChipTextActive]}>All Zones</Text>
-                </Pressable>
-                {zones.map(z => (
-                  <Pressable key={z} onPress={() => setZoneFilter(zoneFilter === z ? null : z)}
-                    style={[styles.filterChip, zoneFilter === z && styles.filterChipActive]}>
-                    <Text style={[styles.filterChipText, zoneFilter === z && styles.filterChipTextActive]}>Zone {z}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              {filteredVehicles.length === 0 ? (
-                <View style={styles.emptyBox}>
-                  <Feather name="car" size={36} color={C.textSecondary} />
-                  <Text style={styles.emptyTitle}>No Active Vehicles</Text>
-                  <Text style={styles.emptySub}>All parking slots are free</Text>
-                </View>
-              ) : filteredVehicles.map(v => (
-                <View key={v.slotId} style={styles.vehicleCard}>
-                  <View style={styles.vehicleHeader}>
-                    <View style={styles.vehicleZoneBadge}>
-                      <Text style={styles.vehicleZoneText}>Zone {v.zoneName}</Text>
-                    </View>
-                    <Text style={styles.vehicleSlot}>{v.slotNumber}</Text>
-                    <View style={styles.vehicleElapsed}>
-                      <Feather name="clock" size={11} color={C.textSecondary} />
-                      <Text style={styles.vehicleElapsedText}>{getElapsed(v.entryTime)}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.vehicleNum}>{v.vehicleNumber}</Text>
-                  <View style={styles.vehicleDetails}>
-                    {v.userName && <View style={styles.vehicleDetailRow}><Feather name="user" size={13} color={C.textSecondary} /><Text style={styles.vehicleDetailText}>{v.userName}</Text></View>}
-                    {v.registrationId && <View style={styles.vehicleDetailRow}><Feather name="credit-card" size={13} color={C.textSecondary} /><Text style={styles.vehicleDetailText}>{v.registrationId}</Text></View>}
-                    {v.entryTime && <View style={styles.vehicleDetailRow}><Feather name="log-in" size={13} color={C.textSecondary} /><Text style={styles.vehicleDetailText}>{new Date(v.entryTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text></View>}
-                  </View>
-                  <Pressable onPress={() => handleForceFree(v.slotId, v.vehicleNumber)} style={styles.forceBtn}>
-                    <Feather name="x-circle" size={14} color={C.danger} />
-                    <Text style={styles.forceBtnText}>Force Free</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </>
-          )}
-
-          {activeTab === "users" && analytics && (
-            <>
-              <Text style={styles.sectionLabel}>Priority Queue — All Users</Text>
-              {analytics.topUsers.length === 0 ? (
-                <View style={styles.emptyBox}>
-                  <Feather name="users" size={32} color={C.textSecondary} />
-                  <Text style={styles.emptyTitle}>No Users Yet</Text>
-                </View>
-              ) : analytics.topUsers.map((u, i) => {
-                const prio = priorityLabel(u.priorityScore ?? 0);
-                return (
-                  <View key={u.userId} style={styles.userCard}>
-                    <View style={[styles.userRank, i < 3 && { backgroundColor: ["#F59E0B", "#9CA3AF", "#CD7C2F"][i] + "20" }]}>
-                      <Text style={[styles.userRankText, i < 3 && { color: ["#F59E0B", "#9CA3AF", "#CD7C2F"][i] }]}>#{i + 1}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.userName}>{u.name ?? u.email}</Text>
-                      {u.registrationId && <Text style={styles.userDetail}>{u.registrationId}</Text>}
-                      <View style={styles.scoreRow}>
-                        <View style={[styles.prioChip, { backgroundColor: prio.color + "20" }]}>
-                          <Text style={[styles.prioChipText, { color: prio.color }]}>Priority Score: {u.priorityScore ?? 0}</Text>
-                        </View>
-                      </View>
-                    </View>
-                    <View style={styles.userPoints}>
-                      <Feather name="star" size={12} color="#F59E0B" />
-                      <Text style={styles.userPointsText}>{u.points}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {analytics.violators.length > 0 && (
+              {activeTab === "overview" && analytics && (
                 <>
-                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Violations & Blocks</Text>
-                  {analytics.violators.map(v => {
-                    const blocked = v.isBlockedUntil && new Date(v.isBlockedUntil) > new Date();
-                    return (
-                      <View key={v.userId} style={styles.violatorCard}>
-                        <View style={styles.violatorInfo}>
-                          <Text style={styles.userName}>{v.name ?? v.email}</Text>
-                          {v.registrationId && <Text style={styles.userDetail}>{v.registrationId}</Text>}
-                          <View style={styles.violatorBadgeRow}>
-                            <View style={[styles.violationBadge, { backgroundColor: C.dangerLight }]}>
-                              <Text style={[styles.violationBadgeText, { color: C.danger }]}>{v.violationCount} violation{v.violationCount !== 1 ? "s" : ""}</Text>
+                  {analytics.predictiveAlerts.length > 0 && (
+                    <View style={styles.alertBanner}>
+                      <Feather name="alert-triangle" size={15} color="#92400E" />
+                      {analytics.predictiveAlerts.map((a, i) => (
+                        <Text key={i} style={styles.alertText}>{a}</Text>
+                      ))}
+                    </View>
+                  )}
+
+                  <Text style={styles.sectionLabel}>Zone Congestion</Text>
+                  <View style={styles.sectionCard}>
+                    {analytics.zoneStats.map((zone, i) => (
+                      <React.Fragment key={zone.zoneName}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <View style={styles.zoneRow}>
+                          <View style={[styles.menuIcon, { backgroundColor: C.tint + "12" }]}>
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: C.tint }}>{zone.zoneName}</Text>
+                          </View>
+                          <View style={{ flex: 1, gap: 6 }}>
+                            <View style={styles.zoneLabelRow}>
+                              <Text style={styles.menuLabel}>Zone {zone.zoneName}</Text>
+                              <Text style={[styles.zonePct, {
+                                color: zone.usagePct >= 80 ? C.statusOccupied : zone.usagePct >= 50 ? C.statusReserved : C.statusFree
+                              }]}>{zone.usagePct}%</Text>
                             </View>
-                            <View style={[styles.violationBadge, { backgroundColor: "#E8F5E920" }]}>
-                              <Text style={[styles.violationBadgeText, { color: C.tint }]}>Score: {v.priorityScore ?? 0}</Text>
+                            <View style={styles.zoneBarTrack}>
+                              <View style={[styles.zoneBarFill, {
+                                width: `${zone.usagePct}%` as any,
+                                backgroundColor: zone.usagePct >= 80 ? C.statusOccupied : zone.usagePct >= 50 ? C.statusReserved : C.statusFree,
+                              }]} />
                             </View>
-                            {blocked && (
-                              <View style={[styles.violationBadge, { backgroundColor: "#F59E0B20" }]}>
-                                <Text style={[styles.violationBadgeText, { color: "#F59E0B" }]}>Blocked</Text>
-                              </View>
-                            )}
+                            <Text style={styles.menuSub}>{zone.free} free · {zone.occupied} occupied · {zone.reserved} reserved</Text>
                           </View>
                         </View>
-                        <View style={styles.violatorActions}>
-                          {blocked ? (
-                            <Pressable onPress={() => handleUnblock(v.userId)} style={styles.unblockBtn}>
-                              <Text style={styles.unblockBtnText}>Unblock</Text>
-                            </Pressable>
-                          ) : (
-                            <Pressable onPress={() => handleBlockUser(v.userId, v.name)} style={styles.blockBtn}>
-                              <Text style={styles.blockBtnText}>Block</Text>
-                            </Pressable>
-                          )}
+                      </React.Fragment>
+                    ))}
+                  </View>
+
+                  <Text style={styles.sectionLabel}>Slot Heatmap</Text>
+                  <View style={[styles.sectionCard, { padding: 14 }]}>
+                    <View style={styles.heatmapGrid}>
+                      {allSlots.map(slot => {
+                        let color = C.statusFree;
+                        if (slot.slotType === "FACULTY") color = "#8B5CF6";
+                        else if (slot.status === "OCCUPIED") color = C.statusOccupied;
+                        else if (slot.status === "RESERVED") color = C.statusReserved;
+                        const textColor = (slot.status === "FREE" && slot.slotType !== "FACULTY") ? "#166534" : "#fff";
+                        return (
+                          <View key={slot.id} style={[styles.heatCell, { backgroundColor: color }]}>
+                            <Text style={[styles.heatCellText, { color: textColor }]}>{slot.slotNumber}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.legendRow}>
+                      {[
+                        { color: C.statusFree, label: "Free" },
+                        { color: C.statusReserved, label: "Reserved" },
+                        { color: C.statusOccupied, label: "Occupied" },
+                        { color: "#8B5CF6", label: "Faculty" },
+                      ].map(l => (
+                        <View key={l.label} style={styles.legendItem}>
+                          <View style={[styles.legendDot, { backgroundColor: l.color }]} />
+                          <Text style={styles.menuSub}>{l.label}</Text>
                         </View>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {activeTab === "vehicles" && (
+                <>
+                  <View style={[styles.sectionCard, { padding: 14 }]}>
+                    <View style={styles.searchBox}>
+                      <Feather name="search" size={15} color={C.textSecondary} />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search vehicle, name, reg ID..."
+                        placeholderTextColor={C.textSecondary}
+                        value={search}
+                        onChangeText={setSearch}
+                      />
+                      {search.length > 0 && (
+                        <Pressable onPress={() => setSearch("")}>
+                          <Feather name="x" size={15} color={C.textSecondary} />
+                        </Pressable>
+                      )}
+                    </View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                      <Pressable onPress={() => setZoneFilter(null)} style={[styles.filterChip, !zoneFilter && styles.filterChipActive]}>
+                        <Text style={[styles.filterChipText, !zoneFilter && styles.filterChipTextActive]}>All Zones</Text>
+                      </Pressable>
+                      {zones.map(z => (
+                        <Pressable key={z} onPress={() => setZoneFilter(zoneFilter === z ? null : z)}
+                          style={[styles.filterChip, zoneFilter === z && styles.filterChipActive]}>
+                          <Text style={[styles.filterChipText, zoneFilter === z && styles.filterChipTextActive]}>Zone {z}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  {filteredVehicles.length === 0 ? (
+                    <View style={styles.emptyBox}>
+                      <Feather name="car" size={36} color={C.textSecondary} />
+                      <Text style={styles.emptyTitle}>No Active Vehicles</Text>
+                      <Text style={styles.menuSub}>All parking slots are free</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.sectionCard}>
+                      {filteredVehicles.map((v, i) => (
+                        <React.Fragment key={v.slotId}>
+                          {i > 0 && <View style={styles.divider} />}
+                          <View style={styles.vehicleRow}>
+                            <View style={{ flex: 1 }}>
+                              <View style={styles.vehicleTopRow}>
+                                <View style={[styles.zoneBadge]}>
+                                  <Text style={styles.zoneBadgeText}>Zone {v.zoneName} · {v.slotNumber}</Text>
+                                </View>
+                                <View style={styles.elapsedRow}>
+                                  <Feather name="clock" size={11} color={C.textSecondary} />
+                                  <Text style={styles.menuSub}>{getElapsed(v.entryTime)}</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.vehicleNum}>{v.vehicleNumber}</Text>
+                              {v.userName && <Text style={styles.menuSub}>{v.userName}{v.registrationId ? ` · ${v.registrationId}` : ""}</Text>}
+                            </View>
+                            <Pressable onPress={() => handleForceFree(v.slotId, v.vehicleNumber)} style={styles.forceFreeBtn}>
+                              <Feather name="x-circle" size={14} color={C.danger} />
+                              <Text style={styles.forceFreeBtnText}>Free</Text>
+                            </Pressable>
+                          </View>
+                        </React.Fragment>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+
+              {activeTab === "users" && analytics && (
+                <>
+                  <Text style={styles.sectionLabel}>Priority Queue</Text>
+                  {analytics.topUsers.length === 0 ? (
+                    <View style={styles.emptyBox}>
+                      <Feather name="users" size={32} color={C.textSecondary} />
+                      <Text style={styles.emptyTitle}>No Users Yet</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.sectionCard}>
+                      {analytics.topUsers.map((u, i) => {
+                        const score = u.priorityScore ?? 0;
+                        const scoreColor = score >= 0 ? C.statusFree : score === -1 ? C.statusReserved : C.statusOccupied;
+                        return (
+                          <React.Fragment key={u.userId}>
+                            {i > 0 && <View style={styles.divider} />}
+                            <View style={styles.menuRow}>
+                              <View style={[styles.menuIcon, { backgroundColor: i < 3 ? (["#F59E0B", "#9CA3AF", "#CD7C2F"][i] + "20") : C.tint + "12" }]}>
+                                <Text style={[styles.rankText, i < 3 && { color: ["#F59E0B", "#9CA3AF", "#CD7C2F"][i] }]}>#{i + 1}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.menuLabel}>{u.name ?? u.email}</Text>
+                                {u.registrationId && <Text style={styles.menuSub}>{u.registrationId}</Text>}
+                              </View>
+                              <View style={[styles.scorePill, { backgroundColor: scoreColor + "18" }]}>
+                                <Text style={[styles.scoreText, { color: scoreColor }]}>
+                                  {score >= 0 ? `+${score}` : `${score}`}
+                                </Text>
+                              </View>
+                            </View>
+                          </React.Fragment>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {analytics.violators.length > 0 && (
+                    <>
+                      <Text style={styles.sectionLabel}>Violations</Text>
+                      <View style={styles.sectionCard}>
+                        {analytics.violators.map((v, i) => {
+                          const blocked = v.isBlockedUntil && new Date(v.isBlockedUntil) > new Date();
+                          return (
+                            <React.Fragment key={v.userId}>
+                              {i > 0 && <View style={styles.divider} />}
+                              <View style={styles.menuRow}>
+                                <View style={[styles.menuIcon, { backgroundColor: C.dangerLight }]}>
+                                  <Feather name="alert-triangle" size={16} color={C.danger} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.menuLabel}>{v.name ?? v.email}</Text>
+                                  <Text style={styles.menuSub}>{v.violationCount} violation{v.violationCount !== 1 ? "s" : ""} · Score: {v.priorityScore ?? 0}</Text>
+                                </View>
+                                {blocked ? (
+                                  <Pressable onPress={() => handleUnblock(v.userId)} style={styles.unblockBtn}>
+                                    <Text style={styles.unblockBtnText}>Unblock</Text>
+                                  </Pressable>
+                                ) : (
+                                  <Pressable onPress={() => handleBlockUser(v.userId, v.name)} style={styles.blockBtn}>
+                                    <Text style={styles.blockBtnText}>Block</Text>
+                                  </Pressable>
+                                )}
+                              </View>
+                            </React.Fragment>
+                          );
+                        })}
                       </View>
-                    );
-                  })}
+                    </>
+                  )}
                 </>
               )}
             </>
           )}
-        </ScrollView>
-      )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 20, paddingBottom: 18, backgroundColor: C.tint,
+  screen: { flex: 1, backgroundColor: C.background },
+  container: {},
+  heroHeader: {
+    backgroundColor: C.tint, paddingHorizontal: 20, paddingBottom: 24,
   },
-  headerIcon: {
-    width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center", justifyContent: "center",
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  heroIconWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
+  heroSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.62)", marginTop: 2 },
+  refreshBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  heroStats: {
+    flexDirection: "row", backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", paddingVertical: 14,
   },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
-  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
-  refreshBtn: {
-    width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center", justifyContent: "center",
-  },
-  subTabs: {
-    flexDirection: "row", marginHorizontal: 16, marginTop: 12, marginBottom: 4,
-    backgroundColor: C.surface, borderRadius: 12, padding: 4, gap: 4,
+  heroStat: { flex: 1, alignItems: "center" },
+  heroStatNum: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  heroStatLbl: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.14)", marginVertical: 4 },
+  body: { paddingHorizontal: 18, paddingTop: 16 },
+  tabRow: {
+    flexDirection: "row", backgroundColor: C.surface, borderRadius: 12,
+    padding: 4, gap: 4, marginBottom: 16,
     borderWidth: 1, borderColor: C.border,
   },
-  subTab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-  subTabActive: { backgroundColor: C.tint },
-  subTabText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  subTabTextActive: { color: "#fff" },
-  loadingBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  tabBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center" },
+  tabBtnActive: { backgroundColor: C.tint },
+  tabBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabBtnTextActive: { color: "#fff" },
+  loadingBox: { alignItems: "center", padding: 60, gap: 12 },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  content: { paddingHorizontal: 20, paddingTop: 12 },
-  alertBanner: { backgroundColor: "#FEF3C7", borderRadius: 14, padding: 14, marginBottom: 16, gap: 4, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
+  alertBanner: {
+    backgroundColor: "#FEF3C7", borderRadius: 12, padding: 12, marginBottom: 14,
+    gap: 4, borderLeftWidth: 3, borderLeftColor: "#F59E0B",
+  },
   alertText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#92400E" },
-  sectionLabel: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
-  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
-  summaryCard: { width: "47%", backgroundColor: C.surface, borderRadius: 14, padding: 14, borderLeftWidth: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  summaryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  summaryVal: { fontSize: 26, fontFamily: "Inter_700Bold", color: C.text },
-  summaryLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary, marginTop: 2 },
-  zoneBar: { backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  zoneBarHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  zoneBarLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  zoneBarPct: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  zoneBarTrack: { height: 10, backgroundColor: C.borderLight, borderRadius: 5, overflow: "hidden", marginBottom: 8 },
-  zoneBarFill: { height: "100%", borderRadius: 5 },
-  zoneBarStats: { flexDirection: "row", gap: 12 },
-  zoneBarStat: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  sectionLabel: {
+    fontSize: 11, fontFamily: "Inter_700Bold", color: C.textSecondary,
+    letterSpacing: 0.8, textTransform: "uppercase",
+    marginBottom: 8, marginLeft: 4, marginTop: 4,
+  },
+  sectionCard: {
+    backgroundColor: C.surface, borderRadius: 16, overflow: "hidden",
+    marginBottom: 18, borderWidth: 1, borderColor: C.border,
+    shadowColor: "#004D36", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
+  menuRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  menuIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  menuLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  menuSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  zoneRow: { flexDirection: "row", alignItems: "flex-start", padding: 14, gap: 12 },
+  zoneLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  zonePct: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  zoneBarTrack: { height: 8, backgroundColor: C.borderLight, borderRadius: 4, overflow: "hidden" },
+  zoneBarFill: { height: "100%", borderRadius: 4 },
   heatmapGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  heatCell: { width: 44, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  heatCellText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
-  legendRow: { flexDirection: "row", gap: 14, marginBottom: 20, flexWrap: "wrap" },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  searchRow: { marginBottom: 10 },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
-  filterScroll: { marginBottom: 12 },
-  filterChip: { borderWidth: 1.5, borderColor: C.border, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginRight: 8 },
+  heatCell: { width: 44, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  heatCellText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  legendRow: { flexDirection: "row", gap: 14, flexWrap: "wrap" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 9, height: 9, borderRadius: 5 },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: C.background, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.border,
+  },
+  searchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
+  filterChip: {
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6, marginRight: 6,
+  },
   filterChipActive: { backgroundColor: C.tint, borderColor: C.tint },
-  filterChipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  filterChipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
   filterChipTextActive: { color: "#fff" },
   emptyBox: { alignItems: "center", padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  vehicleCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  vehicleHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  vehicleZoneBadge: { backgroundColor: C.tint + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  vehicleZoneText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.tint },
-  vehicleSlot: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text, flex: 1 },
-  vehicleElapsed: { flexDirection: "row", alignItems: "center", gap: 4 },
-  vehicleElapsedText: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  vehicleNum: { fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 10, letterSpacing: 1 },
-  vehicleDetails: { gap: 6, marginBottom: 12 },
-  vehicleDetailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  vehicleDetailText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  forceBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", borderWidth: 1, borderColor: C.danger + "50", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  forceBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.danger },
-  userCard: { backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  userRank: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.borderLight, alignItems: "center", justifyContent: "center" },
-  userRankText: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.textSecondary },
-  userName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  userDetail: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  scoreRow: { flexDirection: "row", marginTop: 6 },
-  prioChip: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  prioChipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  userPoints: { flexDirection: "row", alignItems: "center", gap: 4 },
-  userPointsText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F59E0B" },
-  violatorCard: { backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 12, borderLeftWidth: 3, borderLeftColor: C.danger, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  violatorInfo: { flex: 1, gap: 4 },
-  violatorBadgeRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" },
-  violationBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  violationBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  violatorActions: { gap: 6 },
-  blockBtn: { backgroundColor: C.dangerLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  blockBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.danger },
-  unblockBtn: { backgroundColor: C.statusFree + "20", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  unblockBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.statusFree },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  vehicleRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  vehicleTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  zoneBadge: { backgroundColor: C.tint + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  zoneBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.tint },
+  elapsedRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  vehicleNum: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, letterSpacing: 1, marginBottom: 2 },
+  forceFreeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderWidth: 1, borderColor: C.danger + "50", borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  forceFreeBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.danger },
+  rankText: { fontSize: 11, fontFamily: "Inter_700Bold", color: C.tint },
+  scorePill: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  scoreText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  blockBtn: { backgroundColor: C.dangerLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  blockBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.danger },
+  unblockBtn: { backgroundColor: C.statusFree + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  unblockBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.statusFree },
 });
