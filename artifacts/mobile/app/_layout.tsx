@@ -35,8 +35,6 @@ function UserIdSync() {
   return null;
 }
 
-const SUB_ROUTES = new Set(["zone", "parking", "admin"]);
-
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -45,23 +43,25 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const group = segments[0] as string | undefined;
-    const inSubRoute = group ? SUB_ROUTES.has(group) : false;
+    const currentGroup = segments[0] as string | undefined;
+    const inAuthScreen = currentGroup === "auth";
+    const inAdminTabs = currentGroup === "(admin-tabs)";
+    const inUserTabs = currentGroup === "(tabs)";
 
     if (!user) {
-      if (group !== "auth") {
+      if (!inAuthScreen) {
         router.replace("/auth");
       }
     } else if (user.isAdmin) {
-      if (group !== "(admin-tabs)" && !inSubRoute) {
+      if (!inAdminTabs) {
         router.replace("/(admin-tabs)");
       }
     } else {
-      if (group !== "(tabs)" && !inSubRoute) {
+      if (!inUserTabs) {
         router.replace("/(tabs)");
       }
     }
-  }, [user, isLoading, segments]);
+  }, [user, isLoading]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

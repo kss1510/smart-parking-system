@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -26,7 +26,6 @@ function userResponse(user: typeof usersTable.$inferSelect, token: string) {
     registrationId: user.registrationId ?? null,
     vehicleNumber: user.vehicleNumber ?? null,
     points: user.points,
-    priorityScore: user.priorityScore,
     violationCount: user.violationCount,
     isBlockedUntil: user.isBlockedUntil?.toISOString() ?? null,
   };
@@ -102,21 +101,6 @@ router.patch("/profile/:userId", async (req, res) => {
 
   const token = generateToken(user.id, user.email);
   return res.json(userResponse(user, token));
-});
-
-router.get("/leaderboard", async (req, res) => {
-  const users = await db.select({
-    userId: usersTable.id,
-    name: usersTable.name,
-    registrationId: usersTable.registrationId,
-    priorityScore: usersTable.priorityScore,
-    violationCount: usersTable.violationCount,
-  }).from(usersTable)
-    .where(eq(usersTable.isAdmin, false))
-    .orderBy(desc(usersTable.priorityScore), asc(usersTable.violationCount))
-    .limit(50);
-
-  return res.json(users);
 });
 
 export default router;

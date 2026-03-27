@@ -13,7 +13,6 @@ interface AuthUser {
   registrationId?: string | null;
   vehicleNumber?: string | null;
   points?: number;
-  priorityScore?: number;
   violationCount?: number;
   isBlockedUntil?: string | null;
 }
@@ -67,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       registrationId: (data as any).registrationId,
       vehicleNumber: (data as any).vehicleNumber,
       points: (data as any).points ?? 0,
-      priorityScore: (data as any).priorityScore ?? 0,
       violationCount: (data as any).violationCount ?? 0,
       isBlockedUntil: (data as any).isBlockedUntil ?? null,
     });
@@ -89,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       registrationId: (data as any).registrationId ?? opts?.registrationId ?? null,
       vehicleNumber: (data as any).vehicleNumber ?? opts?.vehicleNumber ?? null,
       points: (data as any).points ?? 0,
-      priorityScore: (data as any).priorityScore ?? 0,
       violationCount: (data as any).violationCount ?? 0,
       isBlockedUntil: (data as any).isBlockedUntil ?? null,
     });
@@ -116,7 +113,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registrationId: data.registrationId,
         vehicleNumber: data.vehicleNumber,
         points: data.points ?? 0,
-        priorityScore: data.priorityScore ?? 0,
         violationCount: data.violationCount ?? 0,
         isBlockedUntil: data.isBlockedUntil ?? null,
         isFaculty: data.isFaculty,

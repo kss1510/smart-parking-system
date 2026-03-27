@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -15,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useParking } from "@/context/ParkingContext";
+import { addSlot } from "@workspace/api-client-react";
 
 const C = Colors.light;
 
@@ -50,11 +52,11 @@ function MenuRow({ icon, label, subtitle, onPress, rightEl, danger, accent }: Me
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut, refreshUser } = useAuth();
+  const { user, signOut, toggleAdmin, refreshUser } = useAuth();
 
   React.useEffect(() => { refreshUser(); }, []);
 
-  const { zones } = useParking();
+  const { zones, refreshZones, showNotification } = useParking();
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const handleSignOut = () => {
@@ -71,11 +73,34 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleAddSlot = async (zoneId: number, zoneName: string) => {
+    const zone = zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    const nextNum = zone.totalSlots + 1;
+    const slotNumber = `${zoneName}${nextNum}`;
+    try {
+      await addSlot({ zoneId, slotNumber });
+      await refreshZones();
+      showNotification(`Added slot ${slotNumber} to Zone ${zoneName}`);
+    } catch {
+      showNotification("Failed to add slot.");
+    }
+  };
+
+  const handleAdminPanel = () => {
+    if (!user?.isAdmin) { showNotification("Admin mode required."); return; }
+    Alert.alert("Add Slot", "Choose a zone:", [
+      ...zones.map(z => ({
+        text: `Zone ${z.name} (${z.totalSlots} slots)`,
+        onPress: () => handleAddSlot(z.id, z.name),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
   const initials = user?.name
     ? user.name.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
     : user?.email?.substring(0, 2).toUpperCase() ?? "??";
-
-  const priorityScore = user?.priorityScore ?? 0;
 
   return (
     <View style={styles.screen}>
@@ -92,20 +117,18 @@ export default function ProfileScreen() {
           {user?.registrationId && (
             <Text style={styles.heroReg}>ID: {user.registrationId}</Text>
           )}
-          <View style={[styles.rolePill, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
-            <Feather name="user" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={[styles.rolePillText, { color: "rgba(255,255,255,0.8)" }]}>
-              Student / Faculty
+          <View style={[styles.rolePill, { backgroundColor: user?.isAdmin ? C.gold + "30" : "rgba(255,255,255,0.15)" }]}>
+            <Feather name={user?.isAdmin ? "shield" : "user"} size={12} color={user?.isAdmin ? C.gold : "rgba(255,255,255,0.7)"} />
+            <Text style={[styles.rolePillText, { color: user?.isAdmin ? C.gold : "rgba(255,255,255,0.8)" }]}>
+              {user?.isAdmin ? "Admin Staff" : "Student / Faculty"}
             </Text>
           </View>
 
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Feather name="bar-chart-2" size={14} color={priorityScore >= 0 ? "#6EFFC4" : "#FF8080"} style={{ marginBottom: 4 }} />
-              <Text style={[styles.heroStatNum, { color: priorityScore >= 0 ? "#6EFFC4" : "#FF8080" }]}>
-                {priorityScore >= 0 ? `+${priorityScore}` : `${priorityScore}`}
-              </Text>
-              <Text style={styles.heroStatLbl}>Priority</Text>
+              <Feather name="star" size={14} color={C.gold} style={{ marginBottom: 4 }} />
+              <Text style={styles.heroStatNum}>{user?.points ?? 0}</Text>
+              <Text style={styles.heroStatLbl}>Points</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
@@ -144,6 +167,50 @@ export default function ProfileScreen() {
               subtitle="View past sessions"
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/history"); }}
             />
+          </View>
+
+          <Text style={styles.sectionLabel}>Admin</Text>
+          <View style={styles.sectionCard}>
+            <MenuRow
+              icon="shield"
+              label="Admin Mode"
+              subtitle={user?.isAdmin ? "Enabled — full admin access" : "Disabled — enable to manage slots"}
+              accent={C.gold}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
+              rightEl={
+                <Switch
+                  value={!!user?.isAdmin}
+                  onValueChange={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
+                  trackColor={{ false: C.border, true: C.tint + "80" }}
+                  thumbColor={user?.isAdmin ? C.tint : "#ccc"}
+                />
+              }
+            />
+            {user?.isAdmin && (
+              <>
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="camera"
+                  label="Scan Student QR"
+                  subtitle="Approve student entry at gate"
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/scanner"); }}
+                />
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="bar-chart-2"
+                  label="Admin Dashboard"
+                  subtitle="Analytics, live vehicles & management"
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/dashboard"); }}
+                />
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="plus-circle"
+                  label="Add Parking Slot"
+                  subtitle="Expand a zone with a new slot"
+                  onPress={handleAdminPanel}
+                />
+              </>
+            )}
           </View>
 
           <Text style={styles.sectionLabel}>Zone Overview</Text>
@@ -194,47 +261,106 @@ const styles = StyleSheet.create({
   heroHeader: {
     backgroundColor: C.tint,
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingBottom: 28,
   },
   avatarWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 2.5,
+    borderColor: C.gold + "80",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
+    marginBottom: 14,
   },
-  avatarText: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
-  heroName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 2 },
-  heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", marginBottom: 4 },
-  heroReg: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.5)", marginBottom: 10 },
+  avatarText: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  heroName: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    marginBottom: 3,
+  },
+  heroEmail: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.62)",
+    marginBottom: 3,
+  },
+  heroReg: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 10,
+  },
   rolePill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 20,
   },
-  rolePillText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  heroStats: { flexDirection: "row", backgroundColor: "rgba(0,0,0,0.12)", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20, gap: 0, width: "100%" },
+  rolePillText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  heroStats: {
+    flexDirection: "row",
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    paddingVertical: 14,
+  },
   heroStat: { flex: 1, alignItems: "center" },
   heroStatNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
-  heroStatLbl: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", marginTop: 2 },
-  heroStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.12)", marginVertical: 4 },
+  heroStatLbl: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.14)", marginVertical: 4 },
   body: { paddingHorizontal: 18, paddingTop: 18 },
-  sectionLabel: { fontSize: 11, fontFamily: "Inter_700Bold", color: C.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, marginLeft: 4, marginTop: 4 },
-  sectionCard: {
-    backgroundColor: C.surface, borderRadius: 16, overflow: "hidden", marginBottom: 18,
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: "#004D36", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: C.textSecondary,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    marginLeft: 4,
+    marginTop: 4,
   },
-  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
-  menuRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
-  menuIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  sectionCard: {
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#004D36",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 12,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   menuLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   menuSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
-  zonePill: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
+  zonePill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   zonePillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
