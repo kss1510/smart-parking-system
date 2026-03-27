@@ -45,11 +45,15 @@ function ClassicTabLayout() {
         tabBarActiveTintColor: C.tint,
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
+        tabBarLabelStyle: {
+          fontFamily: "Inter_600SemiBold",
+          fontSize: 11,
+        },
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : isDark ? "#000" : "#fff",
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: isDark ? "#333" : "#eee",
+          backgroundColor: isIOS ? "transparent" : isDark ? "#001A12" : "#fff",
+          borderTopWidth: 1,
+          borderTopColor: isDark ? "#003326" : C.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
@@ -61,7 +65,7 @@ function ClassicTabLayout() {
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "#000" : "#fff" }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "#001A12" : "#fff" }]} />
           ) : null,
       }}
     >

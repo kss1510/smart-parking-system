@@ -214,39 +214,28 @@ export default function ZoneDetailScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <Feather name="arrow-left" size={20} color="#fff" />
         </Pressable>
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.headerTitle}>Zone {name ?? id}</Text>
-          <Text style={styles.headerSub}>{freeCount} slots available · {facultyCount} faculty reserved</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: C.statusFree }]} />
-          <View style={[styles.legendDot, { backgroundColor: C.statusReserved }]} />
-          <View style={[styles.legendDot, { backgroundColor: C.statusOccupied }]} />
-          <View style={[styles.legendDot, { backgroundColor: "#8B5CF6" }]} />
+          <Text style={styles.headerSub}>{freeCount} free · {facultyCount} faculty · {occupiedCount} occupied</Text>
         </View>
       </View>
 
       <View style={styles.statsBar}>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusFree }]} />
-          <Text style={styles.chipText}>{freeCount} Free</Text>
-        </View>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusReserved }]} />
-          <Text style={styles.chipText}>{reservedCount} Reserved</Text>
-        </View>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: C.statusOccupied }]} />
-          <Text style={styles.chipText}>{occupiedCount} Occupied</Text>
-        </View>
-        <View style={styles.statChip}>
-          <View style={[styles.chipDot, { backgroundColor: "#8B5CF6" }]} />
-          <Text style={styles.chipText}>{facultyCount} Faculty</Text>
-        </View>
+        {[
+          { color: C.statusFree, label: `${freeCount} Free` },
+          { color: C.statusReserved, label: `${reservedCount} Reserved` },
+          { color: C.statusOccupied, label: `${occupiedCount} Occupied` },
+          { color: "#8B5CF6", label: `${facultyCount} Faculty` },
+        ].map(chip => (
+          <View key={chip.label} style={styles.statChip}>
+            <View style={[styles.chipDot, { backgroundColor: chip.color }]} />
+            <Text style={styles.chipText}>{chip.label}</Text>
+          </View>
+        ))}
       </View>
 
       {loading ? (
@@ -293,28 +282,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    backgroundColor: "#fff",
+    paddingBottom: 18,
+    backgroundColor: C.tint,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 12,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: C.text,
+    color: "#fff",
   },
   headerSub: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 2,
   },
   legendRow: {
     flexDirection: "row",
@@ -328,20 +316,24 @@ const styles = StyleSheet.create({
   },
   statsBar: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 6,
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     flexWrap: "wrap",
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
   statChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: C.background,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
   chipText: {

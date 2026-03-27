@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useParking } from "@/context/ParkingContext";
-import { addSlot, deleteSlot } from "@workspace/api-client-react";
+import { addSlot } from "@workspace/api-client-react";
 
 const C = Colors.light;
 
@@ -27,22 +27,25 @@ interface MenuRowProps {
   onPress?: () => void;
   rightEl?: React.ReactNode;
   danger?: boolean;
+  accent?: string;
 }
 
-function MenuRow({ icon, label, subtitle, onPress, rightEl, danger }: MenuRowProps) {
+function MenuRow({ icon, label, subtitle, onPress, rightEl, danger, accent }: MenuRowProps) {
+  const iconColor = danger ? C.danger : accent ?? C.tint;
+  const iconBg = danger ? C.dangerLight : (accent ? accent + "15" : C.tint + "12");
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.75 : 1 }]}
     >
-      <View style={[styles.menuIcon, { backgroundColor: danger ? C.dangerLight : C.background }]}>
-        <Feather name={icon as any} size={18} color={danger ? C.danger : C.textSecondary} />
+      <View style={[styles.menuIcon, { backgroundColor: iconBg }]}>
+        <Feather name={icon as any} size={17} color={iconColor} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.menuLabel, danger && { color: C.danger }]}>{label}</Text>
         {subtitle && <Text style={styles.menuSub}>{subtitle}</Text>}
       </View>
-      {rightEl ?? <Feather name="chevron-right" size={18} color={C.border} />}
+      {rightEl ?? <Feather name="chevron-right" size={17} color={C.border} />}
     </Pressable>
   );
 }
@@ -51,11 +54,10 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut, toggleAdmin, refreshUser } = useAuth();
 
-  React.useEffect(() => {
-    refreshUser();
-  }, []);
+  React.useEffect(() => { refreshUser(); }, []);
+
   const { zones, refreshZones, showNotification } = useParking();
-  const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -79,294 +81,260 @@ export default function ProfileScreen() {
   };
 
   const handleAdminPanel = () => {
-    if (!user?.isAdmin) {
-      showNotification("Admin mode is required.");
-      return;
-    }
-    Alert.alert(
-      "Admin: Add Slot",
-      "Choose a zone to add a slot to:",
-      [
-        ...zones.map(z => ({
-          text: `Zone ${z.name} (${z.totalSlots} slots)`,
-          onPress: () => handleAddSlot(z.id, z.name),
-        })),
-        { text: "Cancel", style: "cancel" as const },
-      ]
-    );
+    if (!user?.isAdmin) { showNotification("Admin mode required."); return; }
+    Alert.alert("Add Slot", "Choose a zone:", [
+      ...zones.map(z => ({
+        text: `Zone ${z.name} (${z.totalSlots} slots)`,
+        onPress: () => handleAddSlot(z.id, z.name),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
   };
 
-  const initials = user?.email?.substring(0, 2).toUpperCase() ?? "??";
+  const initials = user?.name
+    ? user.name.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
+    : user?.email?.substring(0, 2).toUpperCase() ?? "??";
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: C.background }]}
-      contentContainerStyle={[styles.container, { paddingTop: topPad, paddingBottom: insets.bottom + 100 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.avatarSection}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        {user?.name && <Text style={styles.userName}>{user.name}</Text>}
-        <Text style={styles.email}>{user?.email}</Text>
-        {user?.registrationId && (
-          <Text style={styles.regId}>ID: {user.registrationId}</Text>
-        )}
-        <View style={styles.roleBadge}>
-          <Feather name={user?.isAdmin ? "shield" : "user"} size={12} color={user?.isAdmin ? C.warning : C.textSecondary} />
-          <Text style={[styles.roleText, user?.isAdmin && { color: C.warning }]}>
-            {user?.isAdmin ? "Admin Mode" : "Student"}
-          </Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Feather name="star" size={16} color="#F59E0B" />
-            <Text style={styles.statNum}>{user?.points ?? 0}</Text>
-            <Text style={styles.statLabel}>Points</Text>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.heroHeader, { paddingTop: topPad + 20 }]}>
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Feather name="alert-triangle" size={16} color={(user?.violationCount ?? 0) > 0 ? C.danger : C.textSecondary} />
-            <Text style={[styles.statNum, (user?.violationCount ?? 0) > 0 && { color: C.danger }]}>
-              {user?.violationCount ?? 0}
+          {user?.name && <Text style={styles.heroName}>{user.name}</Text>}
+          <Text style={styles.heroEmail}>{user?.email}</Text>
+          {user?.registrationId && (
+            <Text style={styles.heroReg}>ID: {user.registrationId}</Text>
+          )}
+          <View style={[styles.rolePill, { backgroundColor: user?.isAdmin ? C.gold + "30" : "rgba(255,255,255,0.15)" }]}>
+            <Feather name={user?.isAdmin ? "shield" : "user"} size={12} color={user?.isAdmin ? C.gold : "rgba(255,255,255,0.7)"} />
+            <Text style={[styles.rolePillText, { color: user?.isAdmin ? C.gold : "rgba(255,255,255,0.8)" }]}>
+              {user?.isAdmin ? "Admin Staff" : "Student / Faculty"}
             </Text>
-            <Text style={styles.statLabel}>Violations</Text>
           </View>
-          {user?.vehicleNumber && (
-            <>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Feather name="truck" size={16} color={C.textSecondary} />
-                <Text style={styles.statNum}>{user.vehicleNumber}</Text>
-                <Text style={styles.statLabel}>Vehicle</Text>
-              </View>
-            </>
-          )}
-        </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Parking</Text>
-        <View style={styles.sectionCard}>
-          <MenuRow
-            icon="navigation"
-            label="Active Parking"
-            subtitle="View current session"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/parking/active");
-            }}
-          />
-          <View style={styles.divider} />
-          <MenuRow
-            icon="clock"
-            label="Parking History"
-            subtitle="View past sessions"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/(tabs)/history");
-            }}
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Admin</Text>
-        <View style={styles.sectionCard}>
-          <MenuRow
-            icon="shield"
-            label="Admin Mode"
-            subtitle={user?.isAdmin ? "Enabled — can reset slots" : "Disabled — enable to manage slots"}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              toggleAdmin();
-            }}
-            rightEl={
-              <Switch
-                value={!!user?.isAdmin}
-                onValueChange={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  toggleAdmin();
-                }}
-                trackColor={{ false: C.border, true: C.warning + "80" }}
-                thumbColor={user?.isAdmin ? C.warning : C.textSecondary}
-              />
-            }
-          />
-          {user?.isAdmin && (
-            <>
-              <View style={styles.divider} />
-              <MenuRow
-                icon="camera"
-                label="Verify Student QR"
-                subtitle="Scan & approve student entry at gate"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push("/admin/scanner");
-                }}
-              />
-              <View style={styles.divider} />
-              <MenuRow
-                icon="bar-chart-2"
-                label="Admin Dashboard"
-                subtitle="Analytics, live vehicles & user management"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push("/admin/dashboard");
-                }}
-              />
-              <View style={styles.divider} />
-              <MenuRow
-                icon="plus-circle"
-                label="Add Parking Slot"
-                subtitle="Add a new slot to a zone"
-                onPress={handleAdminPanel}
-              />
-            </>
-          )}
-        </View>
-
-        {user?.isAdmin && (
-          <Text style={styles.adminHint}>
-            Long-press occupied slots in Zone Detail to force reset them.
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Zone Overview</Text>
-        <View style={styles.sectionCard}>
-          {zones.map((zone, i) => (
-            <React.Fragment key={zone.id}>
-              {i > 0 && <View style={styles.divider} />}
-              <Pressable
-                style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.8 : 1 }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: "/zone/[id]", params: { id: String(zone.id), name: zone.name } });
-                }}
-              >
-                <View style={[styles.menuIcon, { backgroundColor: C.infoLight }]}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: C.info }}>Z{zone.name}</Text>
+          <View style={styles.heroStats}>
+            <View style={styles.heroStat}>
+              <Feather name="star" size={14} color={C.gold} style={{ marginBottom: 4 }} />
+              <Text style={styles.heroStatNum}>{user?.points ?? 0}</Text>
+              <Text style={styles.heroStatLbl}>Points</Text>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <Feather name="alert-triangle" size={14} color={(user?.violationCount ?? 0) > 0 ? "#FF8080" : "rgba(255,255,255,0.4)"} style={{ marginBottom: 4 }} />
+              <Text style={[styles.heroStatNum, (user?.violationCount ?? 0) > 0 && { color: "#FF8080" }]}>
+                {user?.violationCount ?? 0}
+              </Text>
+              <Text style={styles.heroStatLbl}>Violations</Text>
+            </View>
+            {user?.vehicleNumber && (
+              <>
+                <View style={styles.heroStatDivider} />
+                <View style={styles.heroStat}>
+                  <Feather name="truck" size={14} color="rgba(255,255,255,0.4)" style={{ marginBottom: 4 }} />
+                  <Text style={styles.heroStatNum} numberOfLines={1}>{user.vehicleNumber}</Text>
+                  <Text style={styles.heroStatLbl}>Vehicle</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuLabel}>Zone {zone.name}</Text>
-                  <Text style={styles.menuSub}>{zone.freeSlots}/{zone.totalSlots} free</Text>
-                </View>
-                <View style={[
-                  styles.zonePill,
-                  { backgroundColor: zone.freeSlots === 0 ? C.dangerLight : zone.freeSlots <= 2 ? C.warningLight : C.successLight }
-                ]}>
-                  <Text style={[
-                    styles.zonePillText,
-                    { color: zone.freeSlots === 0 ? C.danger : zone.freeSlots <= 2 ? C.warning : C.success }
-                  ]}>
-                    {zone.freeSlots === 0 ? "Full" : zone.freeSlots <= 2 ? "Limited" : "Available"}
-                  </Text>
-                </View>
-              </Pressable>
-            </React.Fragment>
-          ))}
+              </>
+            )}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <View style={styles.sectionCard}>
-          <MenuRow
-            icon="log-out"
-            label="Sign Out"
-            danger
-            onPress={handleSignOut}
-          />
+        <View style={styles.body}>
+          <Text style={styles.sectionLabel}>Parking</Text>
+          <View style={styles.sectionCard}>
+            <MenuRow
+              icon="navigation"
+              label="Active Parking"
+              subtitle="View your current session"
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/parking/active"); }}
+            />
+            <View style={styles.divider} />
+            <MenuRow
+              icon="clock"
+              label="Parking History"
+              subtitle="View past sessions"
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/history"); }}
+            />
+          </View>
+
+          <Text style={styles.sectionLabel}>Admin</Text>
+          <View style={styles.sectionCard}>
+            <MenuRow
+              icon="shield"
+              label="Admin Mode"
+              subtitle={user?.isAdmin ? "Enabled — full admin access" : "Disabled — enable to manage slots"}
+              accent={C.gold}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
+              rightEl={
+                <Switch
+                  value={!!user?.isAdmin}
+                  onValueChange={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
+                  trackColor={{ false: C.border, true: C.tint + "80" }}
+                  thumbColor={user?.isAdmin ? C.tint : "#ccc"}
+                />
+              }
+            />
+            {user?.isAdmin && (
+              <>
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="camera"
+                  label="Scan Student QR"
+                  subtitle="Approve student entry at gate"
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/scanner"); }}
+                />
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="bar-chart-2"
+                  label="Admin Dashboard"
+                  subtitle="Analytics, live vehicles & management"
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/dashboard"); }}
+                />
+                <View style={styles.divider} />
+                <MenuRow
+                  icon="plus-circle"
+                  label="Add Parking Slot"
+                  subtitle="Expand a zone with a new slot"
+                  onPress={handleAdminPanel}
+                />
+              </>
+            )}
+          </View>
+
+          <Text style={styles.sectionLabel}>Zone Overview</Text>
+          <View style={styles.sectionCard}>
+            {zones.map((zone, i) => (
+              <React.Fragment key={zone.id}>
+                {i > 0 && <View style={styles.divider} />}
+                <Pressable
+                  style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: "/zone/[id]", params: { id: String(zone.id), name: zone.name } });
+                  }}
+                >
+                  <View style={[styles.menuIcon, { backgroundColor: C.tint }]}>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" }}>{zone.name}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuLabel}>Zone {zone.name}</Text>
+                    <Text style={styles.menuSub}>{zone.freeSlots}/{zone.totalSlots} slots free</Text>
+                  </View>
+                  <View style={[styles.zonePill, {
+                    backgroundColor: zone.freeSlots === 0 ? C.dangerLight : zone.freeSlots <= 2 ? C.warningLight : C.successLight
+                  }]}>
+                    <Text style={[styles.zonePillText, {
+                      color: zone.freeSlots === 0 ? C.danger : zone.freeSlots <= 2 ? C.warning : C.success
+                    }]}>
+                      {zone.freeSlots === 0 ? "Full" : zone.freeSlots <= 2 ? "Limited" : "Open"}
+                    </Text>
+                  </View>
+                </Pressable>
+              </React.Fragment>
+            ))}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <MenuRow icon="log-out" label="Sign Out" danger onPress={handleSignOut} rightEl={<View />} />
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  container: { paddingHorizontal: 20 },
-  avatarSection: {
-    alignItems: "center",
-    paddingVertical: 24,
-    marginBottom: 8,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  screen: { flex: 1, backgroundColor: C.background },
+  container: {},
+  heroHeader: {
     backgroundColor: C.tint,
     alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+  },
+  avatarWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 2.5,
+    borderColor: C.gold + "80",
+    alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   avatarText: {
-    fontSize: 26,
+    fontSize: 28,
     fontFamily: "Inter_700Bold",
     color: "#fff",
   },
-  userName: {
+  heroName: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: C.text,
-    marginBottom: 2,
+    color: "#fff",
+    marginBottom: 3,
   },
-  regId: {
+  heroEmail: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
-    marginBottom: 6,
+    color: "rgba(255,255,255,0.62)",
+    marginBottom: 3,
   },
-  email: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-    color: C.textSecondary,
-    marginBottom: 4,
+  heroReg: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 10,
   },
-  statsRow: {
+  rolePill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: C.surface,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginTop: 16,
-    gap: 16,
-  },
-  statItem: { alignItems: "center", gap: 4, flex: 1 },
-  statDivider: { width: 1, height: 32, backgroundColor: C.border },
-  statNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  roleBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: C.background,
+    gap: 6,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    marginBottom: 20,
   },
-  roleText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  section: { marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
+  rolePillText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  heroStats: {
+    flexDirection: "row",
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    paddingVertical: 14,
+  },
+  heroStat: { flex: 1, alignItems: "center" },
+  heroStatNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+  heroStatLbl: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.14)", marginVertical: 4 },
+  body: { paddingHorizontal: 18, paddingTop: 18 },
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
     color: C.textSecondary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 8,
     marginLeft: 4,
+    marginTop: 4,
   },
   sectionCard: {
     backgroundColor: C.surface,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#000",
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#004D36",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -374,35 +342,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    gap: 14,
+    gap: 12,
   },
   menuIcon: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  menuLabel: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-    color: C.text,
-  },
-  menuSub: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
-    marginTop: 2,
-  },
-  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 66 },
-  adminHint: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
-    marginTop: 8,
-    marginLeft: 4,
-    lineHeight: 18,
-  },
+  menuLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  menuSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
   zonePill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  zonePillText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  zonePillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });

@@ -164,14 +164,14 @@ export default function AdminDashboardScreen() {
     <View style={[styles.screen, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <Feather name="arrow-left" size={20} color="#fff" />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
           <Text style={styles.headerSub}>Live monitoring & analytics</Text>
         </View>
         <Pressable onPress={onRefresh} style={styles.refreshBtn}>
-          <Feather name="refresh-cw" size={18} color={C.tint} />
+          <Feather name="refresh-cw" size={17} color="rgba(255,255,255,0.7)" />
         </Pressable>
       </View>
 
@@ -469,21 +469,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 20, paddingBottom: 12, backgroundColor: C.background,
+    paddingHorizontal: 20, paddingBottom: 18, backgroundColor: C.tint,
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface,
+    width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
   },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
+  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
   refreshBtn: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint + "15",
+    width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
   },
   tabs: {
-    flexDirection: "row", marginHorizontal: 20, marginBottom: 4,
+    flexDirection: "row", marginHorizontal: 16, marginTop: 12, marginBottom: 4,
     backgroundColor: C.surface, borderRadius: 12, padding: 4, gap: 4,
+    borderWidth: 1, borderColor: C.border,
   },
   tab: {
     flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center",
