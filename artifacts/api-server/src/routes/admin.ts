@@ -39,6 +39,67 @@ router.delete("/slots/:slotId", async (req, res) => {
   return res.json({ message: "Slot deleted" });
 });
 
+router.post("/rfid-entry", async (req, res) => {
+  const { vehicleNumber } = req.body;
+
+  if (!vehicleNumber || !String(vehicleNumber).trim()) {
+    return res.status(400).json({ error: "Vehicle number is required for RFID entry." });
+  }
+
+  const plate = String(vehicleNumber).trim().toUpperCase();
+  const now = new Date();
+
+  const [slot] = await db.select().from(slotsTable).where(eq(slotsTable.vehicleNumber, plate));
+
+  if (!slot) {
+    return res.status(404).json({ error: `No active reservation found for vehicle ${plate}.` });
+  }
+
+  if (slot.status !== "RESERVED") {
+    return res.status(409).json({ error: "This vehicle's slot is not in a reserved state." });
+  }
+
+  if (slot.reservedUntil && slot.reservedUntil < now) {
+    await db.update(slotsTable).set({
+      status: "FREE",
+      vehicleNumber: null,
+      userId: null,
+      reservedUntil: null,
+      qrToken: null,
+    }).where(eq(slotsTable.id, slot.id));
+    return res.status(410).json({ error: "Reservation has expired. Slot has been released." });
+  }
+
+  const [updated] = await db.update(slotsTable).set({
+    status: "OCCUPIED",
+    entryTime: now,
+    reservedUntil: null,
+    qrToken: null,
+  }).where(eq(slotsTable.id, slot.id)).returning();
+
+  const [zone] = await db.select().from(zonesTable).where(eq(zonesTable.id, updated.zoneId));
+
+  let userName: string | null = null;
+  let registrationId: string | null = null;
+  if (updated.userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId));
+    userName = user?.name ?? null;
+    registrationId = user?.registrationId ?? null;
+  }
+
+  await recordAnalytics(updated.zoneId);
+
+  return res.json({
+    slotId: updated.id,
+    slotNumber: updated.slotNumber,
+    zoneName: zone?.name ?? "",
+    vehicleNumber: updated.vehicleNumber!,
+    entryTime: updated.entryTime!.toISOString(),
+    userName,
+    registrationId,
+  });
+});
+
 router.post("/verify-qr", async (req, res) => {
   const { token } = req.body;
 

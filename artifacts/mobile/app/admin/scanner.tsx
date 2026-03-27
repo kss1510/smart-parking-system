@@ -25,8 +25,9 @@ export default function AdminScannerScreen() {
   const insets = useSafeAreaInsets();
   const { showNotification, refreshZones } = useParking();
   const [permission, requestPermission] = useCameraPermissions();
-  const [mode, setMode] = useState<"camera" | "manual">(Platform.OS === "web" ? "manual" : "camera");
+  const [mode, setMode] = useState<"camera" | "manual" | "rfid">(Platform.OS === "web" ? "manual" : "camera");
   const [token, setToken] = useState("");
+  const [rfidPlate, setRfidPlate] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerifyQrResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,8 +72,32 @@ export default function AdminScannerScreen() {
     handleVerify(data);
   };
 
+  const handleRfidVerify = async () => {
+    const plate = rfidPlate.trim().toUpperCase();
+    if (!plate) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const data = await customFetch<VerifyQrResponse>("/api/admin/rfid-entry", {
+        method: "POST",
+        body: JSON.stringify({ vehicleNumber: plate }),
+      });
+      setResult(data);
+      showNotification(`RFID entry confirmed: ${data.vehicleNumber} → Slot ${data.slotNumber}`);
+      await refreshZones();
+    } catch (e: any) {
+      const msg = e?.message ?? "RFID verification failed.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReset = () => {
     setToken("");
+    setRfidPlate("");
     setResult(null);
     setError(null);
     setScanned(false);
@@ -176,6 +201,13 @@ export default function AdminScannerScreen() {
           <Feather name="edit-3" size={14} color={mode === "manual" ? "#fff" : C.textSecondary} />
           <Text style={[styles.modeBtnText, mode === "manual" && styles.modeBtnTextActive]}>Manual</Text>
         </Pressable>
+        <Pressable
+          onPress={() => { setMode("rfid"); setError(null); }}
+          style={[styles.modeBtn, mode === "rfid" && styles.modeBtnRfidActive]}
+        >
+          <Feather name="wifi" size={14} color={mode === "rfid" ? "#fff" : C.textSecondary} />
+          <Text style={[styles.modeBtnText, mode === "rfid" && styles.modeBtnTextActive]}>RFID</Text>
+        </Pressable>
       </View>
 
       {mode === "camera" ? (
@@ -224,6 +256,66 @@ export default function AdminScannerScreen() {
             </>
           )}
         </View>
+      ) : mode === "rfid" ? (
+        <ScrollView
+          contentContainerStyle={[styles.manualContainer, { paddingBottom: insets.bottom + 40 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.heroCard, { backgroundColor: "#0F1E35", borderColor: "#2563EB30" }]}>
+            <View style={[styles.heroIcon, { backgroundColor: "#1E3A5F" }]}>
+              <Feather name="wifi" size={28} color="#60A5FA" />
+            </View>
+            <Text style={[styles.heroTitle, { color: "#E2E8F0" }]}>RFID Entry Confirmation</Text>
+            <Text style={[styles.heroSub, { color: "#94A3B8" }]}>
+              Enter the vehicle plate number shown on the student's RFID card screen
+            </Text>
+          </View>
+
+          <View style={styles.inputCard}>
+            <Text style={styles.inputLabel}>Vehicle Plate Number</Text>
+            <View style={styles.inputRow}>
+              <Feather name="truck" size={16} color={C.textSecondary} />
+              <TextInput
+                style={[styles.input, { letterSpacing: 1.5 }]}
+                placeholder="AP 31 AC 2044"
+                placeholderTextColor={C.textSecondary}
+                value={rfidPlate}
+                onChangeText={t => setRfidPlate(t.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={handleRfidVerify}
+              />
+              {rfidPlate.length > 0 && (
+                <Pressable onPress={() => setRfidPlate("")}>
+                  <Feather name="x" size={16} color={C.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+            {error && (
+              <View style={styles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={C.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+          </View>
+
+          <Pressable
+            onPress={handleRfidVerify}
+            disabled={loading || !rfidPlate.trim()}
+            style={({ pressed }) => [
+              styles.verifyBtn,
+              { backgroundColor: "#2563EB", opacity: pressed || loading || !rfidPlate.trim() ? 0.7 : 1 },
+            ]}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : (
+              <>
+                <Feather name="wifi" size={20} color="#fff" />
+                <Text style={styles.verifyBtnText}>Confirm RFID Entry</Text>
+              </>
+            )}
+          </Pressable>
+        </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={[styles.manualContainer, { paddingBottom: insets.bottom + 40 }]}
@@ -334,6 +426,7 @@ const styles = StyleSheet.create({
     gap: 6, paddingVertical: 10, borderRadius: 10,
   },
   modeBtnActive: { backgroundColor: C.tint },
+  modeBtnRfidActive: { backgroundColor: "#2563EB" },
   modeBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   modeBtnTextActive: { color: "#fff" },
   cameraContainer: { flex: 1, position: "relative" },

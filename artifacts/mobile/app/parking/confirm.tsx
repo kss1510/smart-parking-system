@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -43,7 +44,7 @@ export default function ConfirmParkingScreen() {
     zoneId: string;
   }>();
   const insets = useSafeAreaInsets();
-  const { showNotification, refreshZones, refreshActiveSession, selectedVehicle, setSelectedVehicle } = useParking();
+  const { showNotification, refreshZones, refreshActiveSession, selectedVehicle, setSelectedVehicle, rfidMode } = useParking();
   const { user } = useAuth();
 
   const [vehicleNumber, setVehicleNumber] = useState(formatPlate(selectedVehicle ?? user?.vehicleNumber ?? ""));
@@ -57,6 +58,19 @@ export default function ConfirmParkingScreen() {
   const [countdown, setCountdown] = useState(300);
   const [confirmed, setConfirmed] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!qrToken || !rfidMode) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.35, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [qrToken, rfidMode]);
 
   useEffect(() => {
     if (!qrToken) return;
@@ -347,6 +361,80 @@ export default function ConfirmParkingScreen() {
 
           <Pressable onPress={handleCancel} style={styles.cancelBtn}>
             <Text style={styles.cancelBtnText}>Go Back</Text>
+          </Pressable>
+        </>
+      ) : rfidMode ? (
+        <>
+          <View style={styles.rfidCard}>
+            <View style={styles.rfidBadgeRow}>
+              <View style={styles.rfidBadge}>
+                <Feather name="wifi" size={11} color="#60A5FA" />
+                <Text style={styles.rfidBadgeText}>RFID MODE</Text>
+              </View>
+            </View>
+
+            <View style={styles.rfidIconWrap}>
+              <Animated.View style={[styles.rfidPulseRing, { transform: [{ scale: pulseAnim }] }]} />
+              <View style={styles.rfidIconCircle}>
+                <Feather name="wifi" size={32} color="#60A5FA" />
+              </View>
+            </View>
+
+            <Text style={styles.rfidPlate}>{vehicleNumber.toUpperCase()}</Text>
+            <Text style={styles.rfidSlotInfo}>Slot {slotNumber} · Zone {zoneName}</Text>
+            {user?.name && <Text style={styles.rfidUserName}>{user.name}</Text>}
+
+            <View style={styles.rfidStatus}>
+              <ActivityIndicator size="small" color="#60A5FA" />
+              <Text style={styles.rfidStatusText}>Awaiting RFID reader confirmation…</Text>
+            </View>
+
+            <View style={styles.rfidHint}>
+              <Feather name="info" size={13} color="#93C5FD" />
+              <Text style={styles.rfidHintText}>
+                Hold your phone near the RFID reader, or ask the guard to confirm entry using your plate number.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.timerCard}>
+            <View style={styles.timerHeader}>
+              <Text style={styles.timerTitle}>Expires In</Text>
+              <View style={[styles.waitingBadge, { backgroundColor: "#1E3A5F" }]}>
+                <Feather name="wifi" size={12} color="#60A5FA" />
+                <Text style={[styles.waitingText, { color: "#60A5FA" }]}>RFID active…</Text>
+              </View>
+            </View>
+            <Text style={[styles.timerDisplay, { color: countdownColor }]}>{timerDisplay}</Text>
+            <Text style={styles.timerSub}>
+              {countdown > 120
+                ? "Guard must read RFID within this window"
+                : countdown > 60
+                ? "Hurry! Less than 2 minutes left"
+                : "Almost expired — find security now!"}
+            </Text>
+          </View>
+
+          <View style={styles.stepsCard}>
+            <Text style={styles.stepsTitle}>What happens next?</Text>
+            {[
+              { icon: "wifi", text: "Security reads your plate number via RFID panel" },
+              { icon: "check-circle", text: "App auto-detects when entry is confirmed" },
+              { icon: "log-out", text: "Tap Exit when you leave to free the slot" },
+            ].map((step, i) => (
+              <View key={i} style={styles.stepRow}>
+                <View style={styles.stepIcon}>
+                  <Feather name={step.icon as any} size={14} color={C.tint} />
+                </View>
+                <Text style={styles.stepText}>{step.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Pressable onPress={handleCancel} disabled={cancelling} style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]}>
+            {cancelling
+              ? <ActivityIndicator size="small" color={C.statusOccupied} />
+              : <Text style={styles.cancelBtnText}>Cancel & Release Slot</Text>}
           </Pressable>
         </>
       ) : (
@@ -841,5 +929,107 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 16,
     lineHeight: 18,
+  },
+  rfidCard: {
+    backgroundColor: "#0F1E35",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#2563EB40",
+  },
+  rfidBadgeRow: {
+    width: "100%",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  rfidBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1E3A5F",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#2563EB50",
+  },
+  rfidBadgeText: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    color: "#60A5FA",
+    letterSpacing: 1.5,
+  },
+  rfidIconWrap: {
+    width: 100,
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  rfidPulseRing: {
+    position: "absolute",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#2563EB25",
+  },
+  rfidIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1E3A5F",
+    borderWidth: 2,
+    borderColor: "#2563EB60",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rfidPlate: {
+    fontSize: 26,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  rfidSlotInfo: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#93C5FD",
+    marginBottom: 4,
+  },
+  rfidUserName: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 20,
+  },
+  rfidStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#1E3A5F",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  rfidStatusText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "#60A5FA",
+  },
+  rfidHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  rfidHintText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#64748B",
+    lineHeight: 18,
+    textAlign: "center",
   },
 });

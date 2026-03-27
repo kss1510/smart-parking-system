@@ -25,11 +25,15 @@ interface ParkingContextType {
   notificationVisible: boolean;
   notificationMessage: string;
   showNotification: (msg: string) => void;
+  rfidMode: boolean;
+  toggleRfidMode: () => void;
 }
 
 const ParkingContext = createContext<ParkingContextType | null>(null);
 
 const CACHE_KEY = "parking_zones_cache";
+
+const RFID_KEY = "campuspark_rfid_mode";
 
 export function ParkingProvider({ children }: { children: React.ReactNode }) {
   const [zones, setZones] = useState<Zone[]>([]);
@@ -40,8 +44,23 @@ export function ParkingProvider({ children }: { children: React.ReactNode }) {
   const [isOffline, setIsOffline] = useState(false);
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
+  const [rfidMode, setRfidMode] = useState(false);
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(RFID_KEY).then(val => {
+      if (val === "true") setRfidMode(true);
+    });
+  }, []);
+
+  const toggleRfidMode = useCallback(() => {
+    setRfidMode(prev => {
+      const next = !prev;
+      AsyncStorage.setItem(RFID_KEY, String(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     userIdRef.current = currentUserId;
@@ -102,6 +121,7 @@ export function ParkingProvider({ children }: { children: React.ReactNode }) {
       selectedVehicle, setSelectedVehicle,
       currentUserId, setCurrentUserId,
       isOffline, notificationVisible, notificationMessage, showNotification,
+      rfidMode, toggleRfidMode,
     }}>
       {children}
     </ParkingContext.Provider>

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -54,7 +55,7 @@ export default function ProfileScreen() {
 
   React.useEffect(() => { refreshUser(); }, []);
 
-  const { zones } = useParking();
+  const { zones, rfidMode, toggleRfidMode } = useParking();
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const handleSignOut = () => {
@@ -199,6 +200,38 @@ export default function ProfileScreen() {
             ))}
           </View>
 
+          <Text style={styles.sectionLabel}>Entry Mode</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.menuRow}>
+              <View style={[styles.menuIcon, { backgroundColor: rfidMode ? "#1A3A5C" : C.tint + "12" }]}>
+                <Feather name="wifi" size={17} color={rfidMode ? "#60A5FA" : C.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuLabel}>RFID Mode</Text>
+                <Text style={styles.menuSub}>
+                  {rfidMode ? "RFID card active — skip QR" : "QR code entry (default)"}
+                </Text>
+              </View>
+              <Switch
+                value={rfidMode}
+                onValueChange={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  toggleRfidMode();
+                }}
+                trackColor={{ false: C.border, true: "#2563EB" }}
+                thumbColor={rfidMode ? "#fff" : "#f4f3f4"}
+              />
+            </View>
+            {rfidMode && (
+              <View style={styles.rfidInfoBanner}>
+                <Feather name="info" size={13} color="#60A5FA" />
+                <Text style={styles.rfidInfoText}>
+                  Your entry will use a virtual RFID card. The security guard confirms via plate number instead of QR scan.
+                </Text>
+              </View>
+            )}
+          </View>
+
           <View style={styles.sectionCard}>
             <MenuRow icon="log-out" label="Sign Out" danger onPress={handleSignOut} rightEl={<View />} />
           </View>
@@ -327,4 +360,21 @@ const styles = StyleSheet.create({
   priorityLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   prioritySub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   priorityNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  rfidInfoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#1E3A5F",
+    borderTopWidth: 1,
+    borderTopColor: "#2563EB30",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  rfidInfoText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#93C5FD",
+    lineHeight: 18,
+  },
 });
