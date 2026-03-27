@@ -201,12 +201,10 @@ router.post("/:slotId/exit", async (req, res) => {
   if (slot.userId) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, slot.userId));
     if (user) {
-      // Priority queue: -1 on proper exit (net = 0 when paired with entry +1 → ideal balance)
       await db.update(usersTable).set({
         points: user.points + 10,
         violationCount: 0,
         isBlockedUntil: null,
-        priorityScore: (user.priorityScore ?? 0) - 1,
       }).where(eq(usersTable.id, user.id));
     }
   }
@@ -265,11 +263,10 @@ router.post("/:slotId/reset", async (req, res) => {
 });
 
 router.post("/admin/add", async (req, res) => {
-  const { zoneId, slotNumber, slotType } = req.body;
+  const { zoneId, slotNumber } = req.body;
   if (!zoneId || !slotNumber) return res.status(400).json({ error: "zoneId and slotNumber required" });
 
-  const type = slotType && ["ANY", "FACULTY", "STUDENT"].includes(String(slotType)) ? String(slotType) : "ANY";
-  const [slot] = await db.insert(slotsTable).values({ zoneId, slotNumber, status: "FREE", slotType: type }).returning();
+  const [slot] = await db.insert(slotsTable).values({ zoneId, slotNumber, status: "FREE" }).returning();
   const [zone] = await db.select().from(zonesTable).where(eq(zonesTable.id, slot.zoneId));
 
   return res.status(201).json(slotToJson(slot, zone?.name ?? ""));

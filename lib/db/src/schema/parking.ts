@@ -15,7 +15,6 @@ export const usersTable = pgTable("users", {
   registrationId: text("registration_id"),
   vehicleNumber: text("vehicle_number"),
   points: integer("points").notNull().default(0),
-  priorityScore: integer("priority_score").notNull().default(0),
   violationCount: integer("violation_count").notNull().default(0),
   isBlockedUntil: timestamp("is_blocked_until"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
