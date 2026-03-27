@@ -214,9 +214,9 @@ export default function AuthScreen() {
         </View>
 
         <View style={styles.formCard}>
-          {!isLogin && !isAdmin && (
+          {!isLogin && (
             <InputField
-              icon="user" label="Full Name" placeholder="John Smith"
+              icon="user" label="Full Name" placeholder={isAdmin ? "Admin Name" : "John Smith"}
               value={name} onChangeText={setName} autoCapitalize="words"
             />
           )}
@@ -275,15 +275,22 @@ export default function AuthScreen() {
             )}
           </Pressable>
 
-          {!isAdmin && (
-            <Pressable onPress={switchMode} style={styles.switchBtn}>
-              <Text style={styles.switchText}>
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
-                <Text style={{ color: accentColor, fontFamily: "Inter_700Bold" }}>
-                  {isLogin ? "Sign Up" : "Sign In"}
-                </Text>
+          <Pressable onPress={switchMode} style={styles.switchBtn}>
+            <Text style={styles.switchText}>
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              <Text style={{ color: accentColor, fontFamily: "Inter_700Bold" }}>
+                {isLogin ? "Register" : "Sign In"}
               </Text>
-            </Pressable>
+            </Text>
+          </Pressable>
+
+          {!isLogin && isAdmin && (
+            <View style={styles.adminCodeHint}>
+              <Feather name="info" size={13} color={C.gold} />
+              <Text style={styles.adminCodeHintText}>
+                An admin secret code is required to create an admin account.
+              </Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -551,5 +558,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: C.textSecondary,
+  },
+  adminCodeHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FDF3D9",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C9A02A44",
+    padding: 12,
+    marginTop: 10,
+  },
+  adminCodeHintText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#7A6010",
+    lineHeight: 17,
   },
 });
