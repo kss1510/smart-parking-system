@@ -117,6 +117,26 @@ router.post("/:slotId/reserve", async (req, res) => {
   return res.json(slotToJson(updated, zone?.name ?? ""));
 });
 
+router.post("/:slotId/cancel", async (req, res) => {
+  const slotId = parseInt(req.params.slotId, 10);
+  const [slot] = await db.select().from(slotsTable).where(eq(slotsTable.id, slotId));
+
+  if (!slot) return res.status(404).json({ error: "Slot not found" });
+  if (slot.status !== "RESERVED") {
+    return res.json({ message: "Slot already free" });
+  }
+
+  await db.update(slotsTable).set({
+    status: "FREE",
+    reservedUntil: null,
+    qrToken: null,
+    vehicleNumber: null,
+    userId: null,
+  }).where(eq(slotsTable.id, slotId));
+
+  return res.json({ message: "Reservation cancelled" });
+});
+
 router.post("/:slotId/confirm", async (req, res) => {
   const slotId = parseInt(req.params.slotId, 10);
   const { vehicleNumber } = req.body;

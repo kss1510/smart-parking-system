@@ -6,7 +6,6 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
   ScrollView,
 } from "react-native";
@@ -35,6 +34,7 @@ export default function ConfirmParkingScreen() {
 
   const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? user?.vehicleNumber ?? "");
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(300);
   const [confirmed, setConfirmed] = useState(false);
@@ -100,26 +100,24 @@ export default function ConfirmParkingScreen() {
     }
   };
 
-  const handleCancel = () => {
-    if (qrToken) {
-      Alert.alert(
-        "Cancel Reservation",
-        "Are you sure you want to cancel? Your reserved slot will be released.",
-        [
-          { text: "Keep Reservation", style: "cancel" },
-          {
-            text: "Cancel & Release",
-            style: "destructive",
-            onPress: () => {
-              if (pollRef.current) clearInterval(pollRef.current);
-              showNotification("Reservation cancelled.");
-              router.back();
-            },
-          },
-        ]
-      );
-    } else {
+  const handleCancel = async () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (qrToken && slotId) {
+      setCancelling(true);
+      try {
+        await customFetch(`/api/slots/${slotId}/cancel`, { method: "POST" });
+        await refreshZones();
+        showNotification("Reservation cancelled. Slot is now free.");
+      } catch {
+        showNotification("Reservation cancelled.");
+      } finally {
+        setCancelling(false);
+      }
+    }
+    if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace("/(tabs)");
     }
   };
 
@@ -151,8 +149,10 @@ export default function ConfirmParkingScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <Pressable onPress={handleCancel} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+        <Pressable onPress={handleCancel} disabled={cancelling} style={styles.backBtn}>
+          {cancelling
+            ? <ActivityIndicator size="small" color={C.tint} />
+            : <Feather name="arrow-left" size={22} color={C.text} />}
         </Pressable>
         <Text style={styles.headerTitle}>{qrToken ? "Your QR Code" : "Reserve Slot"}</Text>
       </View>
@@ -279,8 +279,10 @@ export default function ConfirmParkingScreen() {
             ))}
           </View>
 
-          <Pressable onPress={handleCancel} style={styles.cancelBtn}>
-            <Text style={styles.cancelBtnText}>Cancel & Release Slot</Text>
+          <Pressable onPress={handleCancel} disabled={cancelling} style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]}>
+            {cancelling
+              ? <ActivityIndicator size="small" color={C.statusOccupied} />
+              : <Text style={styles.cancelBtnText}>Cancel & Release Slot</Text>}
           </Pressable>
         </>
       )}
