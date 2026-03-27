@@ -83,10 +83,27 @@ export default function ConfirmParkingScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setLoading(true);
     try {
-      const result = await customFetch<ReserveSlotResponse>(`/api/slots/${slotId}/reserve`, {
+      const result = await customFetch<any>(`/api/slots/${slotId}/reserve`, {
         method: "POST",
         body: JSON.stringify({ vehicleNumber: vehicleNumber.trim().toUpperCase(), userId: user?.userId }),
       });
+
+      if (result.status === "WAITING") {
+        setSelectedVehicle(vehicleNumber.trim().toUpperCase());
+        await refreshZones();
+        router.replace({
+          pathname: "/parking/waiting",
+          params: {
+            waitingId: String(result.waitingId),
+            position: String(result.position),
+            zoneId: String(result.zoneId),
+            zoneName,
+            vehicleNumber: vehicleNumber.trim().toUpperCase(),
+          },
+        });
+        return;
+      }
+
       setSelectedVehicle(vehicleNumber.trim().toUpperCase());
       setQrToken(result.qrToken);
       setCountdown(300);

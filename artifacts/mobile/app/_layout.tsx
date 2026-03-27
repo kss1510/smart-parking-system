@@ -59,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="zone/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="parking/confirm" options={{ headerShown: false }} />
       <Stack.Screen name="parking/active" options={{ headerShown: false }} />
+      <Stack.Screen name="parking/waiting" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
     </Stack>
   );

@@ -37,6 +37,7 @@ export const slotsTable = pgTable("slots", {
   entryTime: timestamp("entry_time"),
   reservedUntil: timestamp("reserved_until"),
   qrToken: text("qr_token"),
+  penaltyApplied: boolean("penalty_applied").notNull().default(false),
 });
 
 export const historyTable = pgTable("history", {
@@ -57,6 +58,28 @@ export const analyticsTable = pgTable("analytics", {
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
+export const priorityScoreLogsTable = pgTable("priority_score_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  date: text("date").notNull(),
+  scoreChange: integer("score_change").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const waitingListTable = pgTable("waiting_list", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  zoneId: integer("zone_id").notNull().references(() => zonesTable.id, { onDelete: "cascade" }),
+  vehicleNumber: text("vehicle_number").notNull(),
+  userScore: integer("user_score").notNull().default(0),
+  status: text("status").notNull().default("WAITING"),
+  grantedSlotId: integer("granted_slot_id"),
+  grantedQrToken: text("granted_qr_token"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
 export const insertZoneSchema = createInsertSchema(zonesTable).omit({ id: true });
 export const insertSlotSchema = createInsertSchema(slotsTable).omit({ id: true });
@@ -68,5 +91,7 @@ export type Zone = typeof zonesTable.$inferSelect;
 export type Slot = typeof slotsTable.$inferSelect;
 export type History = typeof historyTable.$inferSelect;
 export type Analytics = typeof analyticsTable.$inferSelect;
+export type PriorityScoreLog = typeof priorityScoreLogsTable.$inferSelect;
+export type WaitingListEntry = typeof waitingListTable.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertSlot = z.infer<typeof insertSlotSchema>;
