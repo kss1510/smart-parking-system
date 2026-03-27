@@ -25,13 +25,18 @@ interface LeaderboardEntry {
   registrationId: string | null;
   priorityScore: number;
   points: number;
+  isParked: boolean;
 }
 
-function PriorityBadge({ score }: { score: number }) {
+function PriorityBadge({ score, isParked }: { score: number; isParked?: boolean }) {
   let label = "Neutral";
   let bg = "#E5E7EB";
   let color = "#6B7280";
-  if (score > 0) {
+  if (isParked) {
+    label = `+${score} Parked`;
+    bg = "#D1FAE5";
+    color = "#065F46";
+  } else if (score > 0) {
     label = `+${score} Active`;
     bg = "#D1FAE5";
     color = "#065F46";
@@ -184,7 +189,7 @@ export default function LeaderboardScreen() {
                     ]}>
                       {entry.priorityScore > 0 ? `+${entry.priorityScore}` : entry.priorityScore}
                     </Text>
-                    <PriorityBadge score={entry.priorityScore} />
+                    <PriorityBadge score={entry.priorityScore} isParked={entry.isParked} />
                   </View>
                 </View>
               );
@@ -194,8 +199,8 @@ export default function LeaderboardScreen() {
           <View style={styles.legendCard}>
             <Text style={styles.legendTitle}>How Priority Works</Text>
             {[
-              { icon: "log-in", color: "#059669", label: "Reserve slot", desc: "Score goes +1" },
-              { icon: "log-out", color: "#DC2626", label: "Exit & release", desc: "Score goes −1" },
+              { icon: "log-in", color: "#059669", label: "Currently parked", desc: "Score shows +1 (live)" },
+              { icon: "log-out", color: "#DC2626", label: "Exit & release", desc: "Score goes −1 (stored)" },
               { icon: "star", color: C.gold, label: "Positive score", desc: "Nearest slot allocated first" },
               { icon: "clock", color: "#6B7280", label: "Negative score", desc: "Farther slots allocated, lower priority" },
             ].map((item, i) => (
