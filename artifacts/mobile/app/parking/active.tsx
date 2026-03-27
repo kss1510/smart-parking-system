@@ -4,18 +4,19 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   ActivityIndicator,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { exitParking } from "@workspace/api-client-react";
+import { customFetch } from "@workspace/api-client-react";
 import { useParking } from "@/context/ParkingContext";
+import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -32,8 +33,10 @@ function formatDuration(ms: number) {
 export default function ActiveParkingScreen() {
   const insets = useSafeAreaInsets();
   const { activeSession, refreshZones, refreshActiveSession, showNotification } = useParking();
+  const { user, refreshUser } = useAuth();
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!activeSession?.entryTime) return;
@@ -44,32 +47,31 @@ export default function ActiveParkingScreen() {
     return () => clearInterval(interval);
   }, [activeSession?.entryTime]);
 
-  const handleExit = async () => {
+  const handleExit = () => {
     if (!activeSession) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Alert.alert(
-      "Exit Parking",
-      `Exit parking for vehicle ${activeSession.vehicleNumber}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Exit", style: "destructive", onPress: async () => {
-            setLoading(true);
-            try {
-              const result = await exitParking(activeSession.slotId);
-              await refreshZones();
-              await refreshActiveSession();
-              showNotification(`Parked for ${result.duration} min. See you next time!`);
-              router.replace("/(tabs)");
-            } catch {
-              showNotification("Failed to exit. Try again.");
-            } finally {
-              setLoading(false);
-            }
-          }
-        },
-      ]
-    );
+    setShowConfirm(true);
+  };
+
+  const confirmExit = async () => {
+    if (!activeSession) return;
+    setShowConfirm(false);
+    setLoading(true);
+    try {
+      const result = await customFetch<{ message: string; duration: number; pointsEarned: number }>(
+        `/api/slots/${activeSession.slotId}/exit`,
+        { method: "POST" }
+      );
+      await refreshZones();
+      await refreshActiveSession();
+      await refreshUser();
+      showNotification(`Parked for ${result.duration} min. +${result.pointsEarned} points earned!`);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      showNotification(e?.message ?? "Failed to exit. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
@@ -98,84 +100,123 @@ export default function ActiveParkingScreen() {
   const entryDate = new Date(activeSession.entryTime);
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: C.background }]}
-      contentContainerStyle={[styles.container, { paddingTop: topPad + 16, paddingBottom: insets.bottom + 40 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Active Parking</Text>
-        <View style={styles.liveDot}>
-          <View style={styles.liveDotInner} />
-          <Text style={styles.liveDotText}>Live</Text>
-        </View>
-      </View>
-
-      <View style={styles.heroCard}>
-        <View style={styles.vehicleRow}>
-          <View style={styles.vehicleIconWrap}>
-            <Feather name="truck" size={28} color={C.tint} />
-          </View>
-          <Text style={styles.vehicleNum}>{activeSession.vehicleNumber}</Text>
-        </View>
-        <View style={styles.heroDivider} />
-        <View style={styles.heroSlotRow}>
-          <View style={styles.heroSlotItem}>
-            <Text style={styles.heroSlotLabel}>Zone</Text>
-            <Text style={styles.heroSlotValue}>Zone {activeSession.zoneName}</Text>
-          </View>
-          <View style={styles.heroSlotDivider} />
-          <View style={styles.heroSlotItem}>
-            <Text style={styles.heroSlotLabel}>Slot</Text>
-            <Text style={styles.heroSlotValue}>{activeSession.slotNumber}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.timerCard}>
-        <Text style={styles.timerLabel}>Parked Duration</Text>
-        <Text style={styles.timerValue}>{formatDuration(elapsedMs)}</Text>
-        <Text style={styles.timerSince}>
-          Since {entryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </Text>
-      </View>
-
-      <View style={styles.infoCard}>
-        <View style={styles.infoRow}>
-          <Feather name="calendar" size={16} color={C.textSecondary} />
-          <Text style={styles.infoLabel}>Entry Date</Text>
-          <Text style={styles.infoValue}>{entryDate.toLocaleDateString()}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Feather name="clock" size={16} color={C.textSecondary} />
-          <Text style={styles.infoLabel}>Entry Time</Text>
-          <Text style={styles.infoValue}>{entryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Feather name="map-pin" size={16} color={C.textSecondary} />
-          <Text style={styles.infoLabel}>Location</Text>
-          <Text style={styles.infoValue}>Zone {activeSession.zoneName}, Slot {activeSession.slotNumber}</Text>
-        </View>
-      </View>
-
-      <Pressable
-        onPress={handleExit}
-        disabled={loading}
-        style={({ pressed }) => [styles.exitBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
+    <>
+      <ScrollView
+        style={[styles.screen, { backgroundColor: C.background }]}
+        contentContainerStyle={[styles.container, { paddingTop: topPad + 16, paddingBottom: insets.bottom + 40 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Feather name="log-out" size={20} color="#fff" />
-            <Text style={styles.exitBtnText}>Exit Parking</Text>
-          </>
-        )}
-      </Pressable>
-    </ScrollView>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="arrow-left" size={22} color={C.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Active Parking</Text>
+          <View style={styles.liveDot}>
+            <View style={styles.liveDotInner} />
+            <Text style={styles.liveDotText}>Live</Text>
+          </View>
+        </View>
+
+        <View style={styles.heroCard}>
+          <View style={styles.vehicleRow}>
+            <View style={styles.vehicleIconWrap}>
+              <Feather name="truck" size={28} color={C.tint} />
+            </View>
+            <Text style={styles.vehicleNum}>{activeSession.vehicleNumber}</Text>
+          </View>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroSlotRow}>
+            <View style={styles.heroSlotItem}>
+              <Text style={styles.heroSlotLabel}>Zone</Text>
+              <Text style={styles.heroSlotValue}>Zone {activeSession.zoneName}</Text>
+            </View>
+            <View style={styles.heroSlotDivider} />
+            <View style={styles.heroSlotItem}>
+              <Text style={styles.heroSlotLabel}>Slot</Text>
+              <Text style={styles.heroSlotValue}>{activeSession.slotNumber}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.timerCard}>
+          <Text style={styles.timerLabel}>Parked Duration</Text>
+          <Text style={styles.timerValue}>{formatDuration(elapsedMs)}</Text>
+          <Text style={styles.timerSince}>
+            Since {entryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </Text>
+        </View>
+
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <Feather name="calendar" size={16} color={C.textSecondary} />
+            <Text style={styles.infoLabel}>Entry Date</Text>
+            <Text style={styles.infoValue}>{entryDate.toLocaleDateString()}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="clock" size={16} color={C.textSecondary} />
+            <Text style={styles.infoLabel}>Entry Time</Text>
+            <Text style={styles.infoValue}>{entryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="map-pin" size={16} color={C.textSecondary} />
+            <Text style={styles.infoLabel}>Location</Text>
+            <Text style={styles.infoValue}>Zone {activeSession.zoneName}, Slot {activeSession.slotNumber}</Text>
+          </View>
+          {user?.points !== undefined && (
+            <View style={styles.infoRow}>
+              <Feather name="star" size={16} color={C.textSecondary} />
+              <Text style={styles.infoLabel}>Your Points</Text>
+              <Text style={[styles.infoValue, { color: C.tint }]}>{user.points} pts (+10 on exit)</Text>
+            </View>
+          )}
+        </View>
+
+        <Pressable
+          onPress={handleExit}
+          disabled={loading}
+          style={({ pressed }) => [styles.exitBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Feather name="log-out" size={20} color="#fff" />
+              <Text style={styles.exitBtnText}>Exit Parking</Text>
+            </>
+          )}
+        </Pressable>
+      </ScrollView>
+
+      <Modal visible={showConfirm} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <Feather name="log-out" size={28} color={C.statusOccupied} />
+            </View>
+            <Text style={styles.modalTitle}>Exit Parking?</Text>
+            <Text style={styles.modalBody}>
+              Exit parking for vehicle{"\n"}
+              <Text style={styles.modalVehicle}>{activeSession?.vehicleNumber}</Text>?{"\n\n"}
+              You'll earn <Text style={styles.modalPoints}>+10 points</Text> for a proper exit.
+            </Text>
+            <View style={styles.modalBtns}>
+              <Pressable
+                onPress={() => setShowConfirm(false)}
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+              >
+                <Text style={styles.modalBtnCancelText}>Stay</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmExit}
+                style={[styles.modalBtn, styles.modalBtnExit]}
+              >
+                <Text style={styles.modalBtnExitText}>Exit Now</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -360,6 +401,87 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   goHomeBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  modalCard: {
+    backgroundColor: C.surface,
+    borderRadius: 24,
+    padding: 28,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.dangerLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: C.text,
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  modalVehicle: {
+    fontFamily: "Inter_700Bold",
+    color: C.text,
+    letterSpacing: 1,
+  },
+  modalPoints: {
+    fontFamily: "Inter_700Bold",
+    color: C.statusFree,
+  },
+  modalBtns: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnCancel: {
+    backgroundColor: C.background,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  modalBtnExit: {
+    backgroundColor: C.statusOccupied,
+  },
+  modalBtnCancelText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: C.textSecondary,
+  },
+  modalBtnExitText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: "#fff",

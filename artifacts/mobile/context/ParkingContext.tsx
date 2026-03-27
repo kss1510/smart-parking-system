@@ -1,7 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Zone, Slot, ParkingSession } from "@workspace/api-client-react";
-import { getZones, getSlotsByZone, getActiveParking } from "@workspace/api-client-react";
+import type { Zone } from "@workspace/api-client-react";
+import { getZones, customFetch } from "@workspace/api-client-react";
+
+interface ParkingSession {
+  slotId: number;
+  slotNumber: string;
+  zoneName: string;
+  vehicleNumber: string;
+  entryTime: string;
+}
 
 interface ParkingContextType {
   zones: Zone[];
@@ -11,6 +19,8 @@ interface ParkingContextType {
   refreshActiveSession: (vehicleNumber?: string) => Promise<void>;
   selectedVehicle: string;
   setSelectedVehicle: (v: string) => void;
+  currentUserId: number | null;
+  setCurrentUserId: (id: number | null) => void;
   isOffline: boolean;
   notificationVisible: boolean;
   notificationMessage: string;
@@ -26,10 +36,16 @@ export function ParkingProvider({ children }: { children: React.ReactNode }) {
   const [zonesLoading, setZonesLoading] = useState(true);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    userIdRef.current = currentUserId;
+  }, [currentUserId]);
 
   const showNotification = useCallback((msg: string) => {
     setNotificationMessage(msg);
@@ -55,7 +71,14 @@ export function ParkingProvider({ children }: { children: React.ReactNode }) {
 
   const refreshActiveSession = useCallback(async (vehicleNumber?: string) => {
     try {
-      const data = await getActiveParking({ vehicleNumber });
+      const uid = userIdRef.current;
+      let url = "/api/parking/active";
+      if (uid) {
+        url += `?userId=${uid}`;
+      } else if (vehicleNumber) {
+        url += `?vehicleNumber=${encodeURIComponent(vehicleNumber)}`;
+      }
+      const data = await customFetch<{ session: ParkingSession | null }>(url);
       setActiveSession(data.session ?? null);
     } catch {
       setActiveSession(null);
@@ -77,6 +100,7 @@ export function ParkingProvider({ children }: { children: React.ReactNode }) {
       zones, zonesLoading, refreshZones,
       activeSession, refreshActiveSession,
       selectedVehicle, setSelectedVehicle,
+      currentUserId, setCurrentUserId,
       isOffline, notificationVisible, notificationMessage, showNotification,
     }}>
       {children}

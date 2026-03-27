@@ -41,11 +41,22 @@ interface LiveVehicle {
 
 type Tab = "overview" | "vehicles" | "users";
 
+interface SlotInfo {
+  id: number;
+  slotNumber: string;
+  zoneName: string;
+  zoneId: number;
+  status: string;
+  slotType: string;
+  vehicleNumber: string | null;
+}
+
 export default function AdminDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { refreshZones, showNotification } = useParking();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [vehicles, setVehicles] = useState<LiveVehicle[]>([]);
+  const [allSlots, setAllSlots] = useState<SlotInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -55,12 +66,14 @@ export default function AdminDashboardScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [analyticsData, vehiclesData] = await Promise.all([
+      const [analyticsData, vehiclesData, slotsData] = await Promise.all([
         customFetch<AnalyticsData>("/api/admin/analytics"),
         customFetch<LiveVehicle[]>("/api/admin/vehicles"),
+        customFetch<SlotInfo[]>("/api/admin/all-slots"),
       ]);
       setAnalytics(analyticsData);
       setVehicles(vehiclesData);
+      setAllSlots(slotsData);
     } catch (e: any) {
       showNotification("Failed to load dashboard data");
     } finally {
@@ -227,24 +240,33 @@ export default function AdminDashboardScreen() {
                 </View>
               ))}
 
-              <Text style={styles.sectionLabel}>Heatmap</Text>
+              <Text style={styles.sectionLabel}>Slot Heatmap</Text>
               <View style={styles.heatmapGrid}>
-                {analytics.zoneStats.flatMap(zone =>
-                  Array.from({ length: zone.total }, (_, i) => {
-                    const allVehicles = vehicles;
-                    const slotOccupied = allVehicles.some(v => v.zoneName === zone.zoneName);
-                    return { zone: zone.zoneName, idx: i };
-                  }).map(({ zone, idx }) => {
-                    const occ = analytics.zoneStats.find(z => z.zoneName === zone);
-                    const ratio = occ ? (occ.occupied + occ.reserved) / occ.total : 0;
-                    const color = ratio >= 0.8 ? C.statusOccupied : ratio >= 0.5 ? C.statusReserved : C.statusFree;
-                    return (
-                      <View key={`${zone}-${idx}`} style={[styles.heatCell, { backgroundColor: color }]}>
-                        <Text style={styles.heatCellText}>{zone}{idx + 1}</Text>
-                      </View>
-                    );
-                  })
-                )}
+                {allSlots.length > 0
+                  ? allSlots.map(slot => {
+                      let color = C.statusFree;
+                      if (slot.slotType === "FACULTY") color = "#8B5CF6";
+                      else if (slot.status === "OCCUPIED") color = C.statusOccupied;
+                      else if (slot.status === "RESERVED") color = C.statusReserved;
+                      const textColor = (slot.status === "FREE" && slot.slotType !== "FACULTY") ? "#166534" : "#fff";
+                      return (
+                        <View key={slot.id} style={[styles.heatCell, { backgroundColor: color }]}>
+                          <Text style={[styles.heatCellText, { color: textColor }]}>{slot.slotNumber}</Text>
+                        </View>
+                      );
+                    })
+                  : analytics.zoneStats.flatMap(zone =>
+                      Array.from({ length: zone.total }, (_, i) => {
+                        const ratio = zone.total > 0 ? (zone.occupied + zone.reserved) / zone.total : 0;
+                        const color = ratio >= 0.8 ? C.statusOccupied : ratio >= 0.5 ? C.statusReserved : C.statusFree;
+                        return (
+                          <View key={`${zone.zoneName}-${i}`} style={[styles.heatCell, { backgroundColor: color }]}>
+                            <Text style={styles.heatCellText}>{zone.zoneName}{i + 1}</Text>
+                          </View>
+                        );
+                      })
+                    )
+                }
               </View>
 
               <View style={styles.legendRow}>

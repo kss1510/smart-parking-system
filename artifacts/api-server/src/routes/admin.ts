@@ -245,6 +245,27 @@ router.post("/unblock-user/:userId", async (req, res) => {
   return res.json({ message: "User unblocked" });
 });
 
+router.get("/all-slots", async (_req, res) => {
+  const zones = await db.select().from(zonesTable);
+  const slots = await db.select().from(slotsTable);
+
+  const result = slots.map(s => {
+    const zone = zones.find(z => z.id === s.zoneId);
+    return {
+      id: s.id,
+      slotNumber: s.slotNumber,
+      zoneName: zone?.name ?? "",
+      zoneId: s.zoneId,
+      status: s.status,
+      slotType: s.slotType,
+      vehicleNumber: s.vehicleNumber ?? null,
+      userId: s.userId ?? null,
+    };
+  });
+
+  return res.json(result);
+});
+
 async function recordAnalytics(zoneId: number) {
   try {
     const zoneSlots = await db.select().from(slotsTable).where(eq(slotsTable.zoneId, zoneId));

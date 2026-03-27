@@ -1,20 +1,29 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { slotsTable, zonesTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 router.get("/active", async (req, res) => {
   const vehicleNumber = req.query.vehicleNumber as string | undefined;
+  const userId = req.query.userId ? parseInt(req.query.userId as string, 10) : undefined;
 
-  let slots = await db.select().from(slotsTable).where(eq(slotsTable.status, "OCCUPIED")).limit(10);
+  const allOccupied = await db
+    .select()
+    .from(slotsTable)
+    .where(eq(slotsTable.status, "OCCUPIED"))
+    .limit(50);
 
-  if (vehicleNumber) {
-    slots = slots.filter(s => s.vehicleNumber === vehicleNumber);
+  let slot = null;
+  if (userId && !isNaN(userId)) {
+    slot = allOccupied.find(s => s.userId === userId) ?? null;
+  } else if (vehicleNumber) {
+    slot = allOccupied.find(s => s.vehicleNumber === vehicleNumber) ?? null;
+  } else {
+    slot = allOccupied[0] ?? null;
   }
 
-  const slot = slots[0];
   if (!slot) {
     return res.json({ session: null });
   }

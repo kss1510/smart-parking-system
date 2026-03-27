@@ -180,6 +180,7 @@ export default function ZoneDetailScreen() {
         slotId: String(slot.id),
         slotNumber: slot.slotNumber,
         zoneName: slot.zoneName ?? name ?? "",
+        zoneId: String(slot.zoneId ?? id),
       },
     });
   };

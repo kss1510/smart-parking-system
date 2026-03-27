@@ -16,7 +16,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { ParkingProvider } from "@/context/ParkingContext";
+import { ParkingProvider, useParking } from "@/context/ParkingContext";
 
 if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -25,6 +25,15 @@ if (process.env.EXPO_PUBLIC_DOMAIN) {
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+function UserIdSync() {
+  const { user } = useAuth();
+  const { setCurrentUserId } = useParking();
+  useEffect(() => {
+    setCurrentUserId(user?.userId ?? null);
+  }, [user?.userId]);
+  return null;
+}
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
@@ -74,6 +83,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AuthProvider>
                 <ParkingProvider>
+                  <UserIdSync />
                   <RootLayoutNav />
                 </ParkingProvider>
               </AuthProvider>

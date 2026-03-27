@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -23,19 +23,22 @@ import { useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function ConfirmParkingScreen() {
-  const { slotId, slotNumber, zoneName } = useLocalSearchParams<{
+  const { slotId, slotNumber, zoneName, zoneId } = useLocalSearchParams<{
     slotId: string;
     slotNumber: string;
     zoneName: string;
+    zoneId: string;
   }>();
   const insets = useSafeAreaInsets();
-  const { showNotification, refreshZones, selectedVehicle, setSelectedVehicle } = useParking();
+  const { showNotification, refreshZones, refreshActiveSession, selectedVehicle, setSelectedVehicle } = useParking();
   const { user } = useAuth();
 
-  const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? "");
+  const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? user?.vehicleNumber ?? "");
   const [loading, setLoading] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(300);
+  const [confirmed, setConfirmed] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!qrToken) return;
@@ -47,6 +50,30 @@ export default function ConfirmParkingScreen() {
     const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [countdown, qrToken]);
+
+  useEffect(() => {
+    if (!qrToken || !slotId || !zoneId) return;
+
+    const poll = async () => {
+      try {
+        const slots = await customFetch<any[]>(`/api/slots/zone/${zoneId}`);
+        const our = slots.find((s: any) => String(s.id) === String(slotId));
+        if (our?.status === "OCCUPIED") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setConfirmed(true);
+          await refreshZones();
+          await refreshActiveSession(vehicleNumber || undefined);
+          showNotification("Security confirmed your entry! Parking is active.");
+          setTimeout(() => router.replace("/parking/active"), 1200);
+        }
+      } catch {}
+    };
+
+    pollRef.current = setInterval(poll, 2000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [qrToken, slotId, zoneId]);
 
   const handleReserve = async () => {
     if (!vehicleNumber.trim()) {
@@ -84,6 +111,7 @@ export default function ConfirmParkingScreen() {
             text: "Cancel & Release",
             style: "destructive",
             onPress: () => {
+              if (pollRef.current) clearInterval(pollRef.current);
               showNotification("Reservation cancelled.");
               router.back();
             },
@@ -100,6 +128,21 @@ export default function ConfirmParkingScreen() {
   const timerDisplay = `${String(timerMins).padStart(2, "0")}:${String(timerSecs).padStart(2, "0")}`;
   const countdownColor = countdown <= 60 ? C.statusOccupied : countdown <= 120 ? C.statusReserved : C.statusFree;
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
+
+  if (confirmed) {
+    return (
+      <View style={[styles.screen, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
+        <View style={styles.confirmedCard}>
+          <View style={styles.confirmedIconWrap}>
+            <Feather name="check-circle" size={52} color={C.statusFree} />
+          </View>
+          <Text style={styles.confirmedTitle}>Entry Confirmed!</Text>
+          <Text style={styles.confirmedSub}>Redirecting to active parking…</Text>
+          <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -151,17 +194,15 @@ export default function ConfirmParkingScreen() {
               )}
             </View>
 
-            <View style={styles.quickVehicles}>
-              {["TN01AB1234", "KA02CD5678", "MH03EF9900"].map(v => (
-                <Pressable
-                  key={v}
-                  onPress={() => setVehicleNumber(v)}
-                  style={[styles.quickChip, vehicleNumber === v && styles.quickChipActive]}
-                >
-                  <Text style={[styles.quickChipText, vehicleNumber === v && styles.quickChipTextActive]}>{v}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {user?.vehicleNumber && user.vehicleNumber !== vehicleNumber && (
+              <Pressable
+                onPress={() => setVehicleNumber(user.vehicleNumber!)}
+                style={styles.savedVehicleChip}
+              >
+                <Feather name="truck" size={13} color={C.tint} />
+                <Text style={styles.savedVehicleText}>Use saved: {user.vehicleNumber}</Text>
+              </Pressable>
+            )}
           </View>
 
           <Pressable
@@ -205,7 +246,13 @@ export default function ConfirmParkingScreen() {
           </View>
 
           <View style={styles.timerCard}>
-            <Text style={styles.timerTitle}>Expires In</Text>
+            <View style={styles.timerHeader}>
+              <Text style={styles.timerTitle}>Expires In</Text>
+              <View style={styles.waitingBadge}>
+                <ActivityIndicator size="small" color={C.tint} />
+                <Text style={styles.waitingText}>Waiting for scan…</Text>
+              </View>
+            </View>
             <Text style={[styles.timerDisplay, { color: countdownColor }]}>{timerDisplay}</Text>
             <Text style={styles.timerSub}>
               {countdown > 120
@@ -220,7 +267,7 @@ export default function ConfirmParkingScreen() {
             <Text style={styles.stepsTitle}>What happens next?</Text>
             {[
               { icon: "shield", text: "Security guard scans your QR code" },
-              { icon: "check-circle", text: "Slot status changes to Occupied" },
+              { icon: "check-circle", text: "App auto-detects when scan is complete" },
               { icon: "log-out", text: "Tap Exit when you leave to free the slot" },
             ].map((step, i) => (
               <View key={i} style={styles.stepRow}>
@@ -341,30 +388,22 @@ const styles = StyleSheet.create({
     color: C.text,
     letterSpacing: 1,
   },
-  quickVehicles: {
+  savedVehicleChip: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "center",
+    gap: 6,
     marginTop: 12,
-  },
-  quickChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: C.tint + "12",
     borderRadius: 20,
-    backgroundColor: C.background,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: C.tint + "30",
   },
-  quickChipActive: {
-    backgroundColor: C.tint + "20",
-    borderColor: C.tint,
-  },
-  quickChipText: {
-    fontSize: 12,
+  savedVehicleText: {
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: C.textSecondary,
-  },
-  quickChipTextActive: {
     color: C.tint,
   },
   reserveBtn: {
@@ -389,6 +428,38 @@ const styles = StyleSheet.create({
   cancelBtnText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
+    color: C.textSecondary,
+  },
+  confirmedCard: {
+    backgroundColor: C.surface,
+    borderRadius: 24,
+    padding: 40,
+    alignItems: "center",
+    marginHorizontal: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  confirmedIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: C.statusFreeLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  confirmedTitle: {
+    fontSize: 24,
+    fontFamily: "Inter_700Bold",
+    color: C.text,
+    marginBottom: 8,
+  },
+  confirmedSub: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
     color: C.textSecondary,
   },
   qrCard: {
@@ -453,13 +524,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  timerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 6,
+  },
   timerTitle: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     color: C.textSecondary,
     letterSpacing: 0.5,
     textTransform: "uppercase",
-    marginBottom: 6,
+  },
+  waitingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.tint + "15",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  waitingText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: C.tint,
   },
   timerDisplay: {
     fontSize: 40,
