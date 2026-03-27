@@ -27,6 +27,7 @@ function userResponse(user: typeof usersTable.$inferSelect, token: string) {
     vehicleNumber: user.vehicleNumber ?? null,
     points: user.points,
     violationCount: user.violationCount,
+    priorityScore: user.priorityScore,
     isBlockedUntil: user.isBlockedUntil?.toISOString() ?? null,
   };
 }

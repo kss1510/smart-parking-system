@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { customFetch } from "@workspace/api-client-react";
 import { useParking } from "@/context/ParkingContext";
+import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -54,6 +55,7 @@ interface SlotInfo {
 export default function AdminDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { refreshZones, showNotification } = useParking();
+  const { signOut } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [vehicles, setVehicles] = useState<LiveVehicle[]>([]);
   const [allSlots, setAllSlots] = useState<SlotInfo[]>([]);
@@ -163,8 +165,8 @@ export default function AdminDashboardScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color="#fff" />
+        <Pressable onPress={() => router.push("/admin/scanner")} style={styles.backBtn}>
+          <Feather name="camera" size={18} color="#fff" />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
@@ -172,6 +174,9 @@ export default function AdminDashboardScreen() {
         </View>
         <Pressable onPress={onRefresh} style={styles.refreshBtn}>
           <Feather name="refresh-cw" size={17} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+        <Pressable onPress={signOut} style={[styles.refreshBtn, { marginLeft: 6 }]}>
+          <Feather name="log-out" size={17} color="rgba(255,255,255,0.7)" />
         </Pressable>
       </View>
 

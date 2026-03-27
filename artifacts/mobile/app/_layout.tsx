@@ -41,7 +41,11 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
-        router.replace("/(tabs)");
+        if (user.isAdmin) {
+          router.replace("/admin/dashboard");
+        } else {
+          router.replace("/(tabs)");
+        }
       } else {
         router.replace("/auth");
       }
@@ -55,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="zone/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="parking/confirm" options={{ headerShown: false }} />
       <Stack.Screen name="parking/active" options={{ headerShown: false }} />
+      <Stack.Screen name="admin" options={{ headerShown: false }} />
     </Stack>
   );
 }

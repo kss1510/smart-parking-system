@@ -7,7 +7,6 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -16,7 +15,6 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useParking } from "@/context/ParkingContext";
-import { addSlot } from "@workspace/api-client-react";
 
 const C = Colors.light;
 
@@ -52,42 +50,17 @@ function MenuRow({ icon, label, subtitle, onPress, rightEl, danger, accent }: Me
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut, toggleAdmin, refreshUser } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
 
   React.useEffect(() => { refreshUser(); }, []);
 
-  const { zones, refreshZones, showNotification } = useParking();
+  const { zones } = useParking();
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top;
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: signOut },
-    ]);
-  };
-
-  const handleAddSlot = async (zoneId: number, zoneName: string) => {
-    const zone = zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    const nextNum = zone.totalSlots + 1;
-    const slotNumber = `${zoneName}${nextNum}`;
-    try {
-      await addSlot({ zoneId, slotNumber });
-      await refreshZones();
-      showNotification(`Added slot ${slotNumber} to Zone ${zoneName}`);
-    } catch {
-      showNotification("Failed to add slot.");
-    }
-  };
-
-  const handleAdminPanel = () => {
-    if (!user?.isAdmin) { showNotification("Admin mode required."); return; }
-    Alert.alert("Add Slot", "Choose a zone:", [
-      ...zones.map(z => ({
-        text: `Zone ${z.name} (${z.totalSlots} slots)`,
-        onPress: () => handleAddSlot(z.id, z.name),
-      })),
-      { text: "Cancel", style: "cancel" as const },
     ]);
   };
 
@@ -162,48 +135,35 @@ export default function ProfileScreen() {
             />
           </View>
 
-          <Text style={styles.sectionLabel}>Admin</Text>
-          <View style={styles.sectionCard}>
-            <MenuRow
-              icon="shield"
-              label="Admin Mode"
-              subtitle={user?.isAdmin ? "Enabled — full admin access" : "Disabled — enable to manage slots"}
-              accent={C.gold}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
-              rightEl={
-                <Switch
-                  value={!!user?.isAdmin}
-                  onValueChange={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleAdmin(); }}
-                  trackColor={{ false: C.border, true: C.tint + "80" }}
-                  thumbColor={user?.isAdmin ? C.tint : "#ccc"}
+          <Text style={styles.sectionLabel}>Priority Queue</Text>
+          <View style={[styles.sectionCard, styles.priorityCard]}>
+            <View style={styles.priorityRow}>
+              <View style={[styles.priorityIcon, {
+                backgroundColor: (user?.priorityScore ?? 0) > 0 ? "#D1FAE5" : (user?.priorityScore ?? 0) < 0 ? "#FEE2E2" : C.tint + "12"
+              }]}>
+                <Feather
+                  name={(user?.priorityScore ?? 0) > 0 ? "trending-up" : (user?.priorityScore ?? 0) < 0 ? "trending-down" : "minus"}
+                  size={18}
+                  color={(user?.priorityScore ?? 0) > 0 ? "#059669" : (user?.priorityScore ?? 0) < 0 ? "#DC2626" : C.tint}
                 />
-              }
-            />
-            {user?.isAdmin && (
-              <>
-                <View style={styles.divider} />
-                <MenuRow
-                  icon="camera"
-                  label="Scan Student QR"
-                  subtitle="Approve student entry at gate"
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/scanner"); }}
-                />
-                <View style={styles.divider} />
-                <MenuRow
-                  icon="bar-chart-2"
-                  label="Admin Dashboard"
-                  subtitle="Analytics, live vehicles & management"
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/dashboard"); }}
-                />
-                <View style={styles.divider} />
-                <MenuRow
-                  icon="plus-circle"
-                  label="Add Parking Slot"
-                  subtitle="Expand a zone with a new slot"
-                  onPress={handleAdminPanel}
-                />
-              </>
-            )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.priorityLabel}>Priority Score</Text>
+                <Text style={styles.prioritySub}>
+                  {(user?.priorityScore ?? 0) > 0
+                    ? "You have nearest slot priority"
+                    : (user?.priorityScore ?? 0) < 0
+                    ? "Delayed slot allocation active"
+                    : "Neutral — equal allocation"}
+                </Text>
+              </View>
+              <Text style={[
+                styles.priorityNum,
+                (user?.priorityScore ?? 0) > 0 ? { color: "#059669" } : (user?.priorityScore ?? 0) < 0 ? { color: "#DC2626" } : { color: C.textSecondary }
+              ]}>
+                {(user?.priorityScore ?? 0) > 0 ? `+${user?.priorityScore}` : user?.priorityScore ?? 0}
+              </Text>
+            </View>
           </View>
 
           <Text style={styles.sectionLabel}>Zone Overview</Text>
@@ -356,4 +316,15 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 62 },
   zonePill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   zonePillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  priorityCard: { padding: 0 },
+  priorityRow: {
+    flexDirection: "row", alignItems: "center", gap: 14, padding: 14,
+  },
+  priorityIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  priorityLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  prioritySub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  priorityNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
 });

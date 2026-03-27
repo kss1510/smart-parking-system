@@ -98,6 +98,7 @@ router.post("/:slotId/reserve", async (req, res) => {
     if (user?.isBlockedUntil && user.isBlockedUntil > now) {
       return res.status(403).json({ error: "Your account is blocked. Contact admin." });
     }
+    await db.update(usersTable).set({ priorityScore: (user?.priorityScore ?? 0) + 1 }).where(eq(usersTable.id, parseInt(String(userId), 10)));
   }
 
   const reservedUntil = new Date(now.getTime() + 5 * 60 * 1000);
@@ -203,6 +204,7 @@ router.post("/:slotId/exit", async (req, res) => {
     if (user) {
       await db.update(usersTable).set({
         points: user.points + 10,
+        priorityScore: user.priorityScore - 1,
         violationCount: 0,
         isBlockedUntil: null,
       }).where(eq(usersTable.id, user.id));

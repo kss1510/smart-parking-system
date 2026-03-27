@@ -6,6 +6,7 @@ import slotsRouter from "./slots";
 import parkingRouter from "./parking";
 import adminRouter from "./admin";
 import historyRouter from "./history";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/slots", slotsRouter);
 router.use("/parking", parkingRouter);
 router.use("/admin", adminRouter);
 router.use("/history", historyRouter);
+router.use("/users", usersRouter);
 
 export default router;
