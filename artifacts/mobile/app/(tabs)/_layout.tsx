@@ -17,6 +17,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "car.2", selected: "car.2.fill" }} />
         <Label>Parking</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="zones">
+        <Icon sf={{ default: "map", selected: "map.fill" }} />
+        <Label>Zones</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <Icon sf={{ default: "clock", selected: "clock.fill" }} />
         <Label>History</Label>
@@ -78,6 +82,18 @@ function ClassicTabLayout() {
               <SymbolView name="car.2" tintColor={color} size={24} />
             ) : (
               <Feather name="map-pin" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="zones"
+        options={{
+          title: "Zones",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="map" tintColor={color} size={24} />
+            ) : (
+              <Feather name="map" size={22} color={color} />
             ),
         }}
       />

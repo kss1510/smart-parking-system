@@ -83,6 +83,10 @@ router.post("/verify-qr", async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId));
     userName = user?.name ?? null;
     registrationId = user?.registrationId ?? null;
+    // Priority queue: +1 on confirmed entry (security QR scan)
+    await db.update(usersTable).set({
+      priorityScore: (user?.priorityScore ?? 0) + 1,
+    }).where(eq(usersTable.id, updated.userId));
   }
 
   await recordAnalytics(updated.zoneId);
@@ -155,8 +159,9 @@ router.get("/analytics", async (_req, res) => {
     email: usersTable.email,
     registrationId: usersTable.registrationId,
     points: usersTable.points,
+    priorityScore: usersTable.priorityScore,
     violationCount: usersTable.violationCount,
-  }).from(usersTable).orderBy(desc(usersTable.points)).limit(10);
+  }).from(usersTable).orderBy(desc(usersTable.priorityScore), desc(usersTable.points)).limit(20);
 
   const violators = await db.select({
     userId: usersTable.id,
@@ -164,6 +169,7 @@ router.get("/analytics", async (_req, res) => {
     email: usersTable.email,
     registrationId: usersTable.registrationId,
     points: usersTable.points,
+    priorityScore: usersTable.priorityScore,
     violationCount: usersTable.violationCount,
     isBlockedUntil: usersTable.isBlockedUntil,
   }).from(usersTable).where(sql`${usersTable.violationCount} > 0`).orderBy(desc(usersTable.violationCount)).limit(10);
@@ -208,10 +214,14 @@ router.post("/force-free/:slotId", async (req, res) => {
         isBlockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
       }
 
+      // Priority queue: force-free = -2 (cancels entry +1, adds -1 penalty → net -1)
+      const newPriorityScore = (user.priorityScore ?? 0) - 2;
+
       await db.update(usersTable).set({
         points: newPoints,
         violationCount: newViolation,
         isBlockedUntil,
+        priorityScore: newPriorityScore,
       }).where(eq(usersTable.id, user.id));
     }
   }
