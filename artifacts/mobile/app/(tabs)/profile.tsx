@@ -62,14 +62,7 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await signOut();
-          router.replace("/auth");
-        },
-      },
+      { text: "Sign Out", style: "destructive", onPress: signOut },
     ]);
   };
 

@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -37,28 +37,17 @@ function UserIdSync() {
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
-  const router = useRouter();
-  const segments = useSegments();
 
   useEffect(() => {
-    if (isLoading) return;
-
-    const currentGroup = segments[0] as string | undefined;
-    const inAuthScreen = currentGroup === "auth";
-    const inAdminTabs = currentGroup === "(admin-tabs)";
-    const inUserTabs = currentGroup === "(tabs)";
-
-    if (!user) {
-      if (!inAuthScreen) {
+    if (!isLoading) {
+      if (user) {
+        if (user.isAdmin) {
+          router.replace("/(admin-tabs)");
+        } else {
+          router.replace("/(tabs)");
+        }
+      } else {
         router.replace("/auth");
-      }
-    } else if (user.isAdmin) {
-      if (!inAdminTabs) {
-        router.replace("/(admin-tabs)");
-      }
-    } else {
-      if (!inUserTabs) {
-        router.replace("/(tabs)");
       }
     }
   }, [user, isLoading]);
