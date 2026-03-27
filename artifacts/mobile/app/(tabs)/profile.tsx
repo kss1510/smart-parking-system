@@ -7,7 +7,7 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Animated,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -16,15 +16,9 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useParking } from "@/context/ParkingContext";
-import { addSlot } from "@workspace/api-client-react";
+import { addSlot, deleteSlot } from "@workspace/api-client-react";
 
 const C = Colors.light;
-
-const ROLE_COLORS = {
-  admin: { bg: "#EFF6FF", text: "#1A6BFF", border: "#BFDBFE" },
-  faculty: { bg: "#F5F3FF", text: "#8B5CF6", border: "#DDD6FE" },
-  student: { bg: "#F0FDF4", text: "#16A34A", border: "#BBF7D0" },
-};
 
 interface MenuRowProps {
   icon: string;
@@ -33,57 +27,33 @@ interface MenuRowProps {
   onPress?: () => void;
   rightEl?: React.ReactNode;
   danger?: boolean;
-  iconBg?: string;
-  iconColor?: string;
 }
 
-function MenuRow({ icon, label, subtitle, onPress, rightEl, danger, iconBg, iconColor }: MenuRowProps) {
-  const scale = React.useRef(new Animated.Value(1)).current;
-
-  const handlePressIn = () => {
-    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start();
-  };
-  const handlePressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50 }).start();
-  };
-
+function MenuRow({ icon, label, subtitle, onPress, rightEl, danger }: MenuRowProps) {
   return (
     <Pressable
       onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
+      style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.7 : 1 }]}
     >
-      <Animated.View style={[styles.menuRow, { transform: [{ scale }] }]}>
-        <View style={[
-          styles.menuIcon,
-          {
-            backgroundColor: danger ? "#FEF2F2" : iconBg ?? "#F3F4F6",
-          }
-        ]}>
-          <Feather
-            name={icon as any}
-            size={17}
-            color={danger ? "#EF4444" : iconColor ?? C.textSecondary}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.menuLabel, danger && { color: "#EF4444" }]}>{label}</Text>
-          {subtitle && <Text style={styles.menuSub}>{subtitle}</Text>}
-        </View>
-        {rightEl ?? <Feather name="chevron-right" size={16} color={C.border} />}
-      </Animated.View>
+      <View style={[styles.menuIcon, { backgroundColor: danger ? C.dangerLight : C.background }]}>
+        <Feather name={icon as any} size={18} color={danger ? C.danger : C.textSecondary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.menuLabel, danger && { color: C.danger }]}>{label}</Text>
+        {subtitle && <Text style={styles.menuSub}>{subtitle}</Text>}
+      </View>
+      {rightEl ?? <Feather name="chevron-right" size={18} color={C.border} />}
     </Pressable>
   );
 }
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut, refreshUser } = useAuth();
+  const { user, signOut, toggleAdmin, refreshUser } = useAuth();
 
   React.useEffect(() => {
     refreshUser();
   }, []);
-
   const { zones, refreshZones, showNotification } = useParking();
   const topPad = Platform.OS === "web" ? insets.top + 67 : insets.top + 16;
 
@@ -109,9 +79,12 @@ export default function ProfileScreen() {
   };
 
   const handleAdminPanel = () => {
-    if (!user?.isAdmin) return;
+    if (!user?.isAdmin) {
+      showNotification("Admin mode is required.");
+      return;
+    }
     Alert.alert(
-      "Add Parking Slot",
+      "Admin: Add Slot",
       "Choose a zone to add a slot to:",
       [
         ...zones.map(z => ({
@@ -123,14 +96,7 @@ export default function ProfileScreen() {
     );
   };
 
-  const displayName = user?.name ?? user?.email?.split("@")[0] ?? "User";
-  const initials = displayName.substring(0, 2).toUpperCase();
-
-  const roleKey = user?.isAdmin ? "admin" : user?.isFaculty ? "faculty" : "student";
-  const roleLabel = user?.isAdmin ? "Administrator" : user?.isFaculty ? "Faculty" : "Student";
-  const roleColors = ROLE_COLORS[roleKey];
-
-  const isBlocked = user?.isBlockedUntil && new Date(user.isBlockedUntil) > new Date();
+  const initials = user?.email?.substring(0, 2).toUpperCase() ?? "??";
 
   return (
     <ScrollView
@@ -138,50 +104,32 @@ export default function ProfileScreen() {
       contentContainerStyle={[styles.container, { paddingTop: topPad, paddingBottom: insets.bottom + 100 }]}
       showsVerticalScrollIndicator={false}
     >
-      {isBlocked && (
-        <View style={styles.blockedBanner}>
-          <Feather name="alert-octagon" size={16} color="#fff" />
-          <Text style={styles.blockedText}>Account restricted until {new Date(user!.isBlockedUntil!).toLocaleDateString()}</Text>
+      <View style={styles.avatarSection}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
         </View>
-      )}
-
-      <View style={styles.profileCard}>
-        <View style={styles.avatarContainer}>
-          <View style={[styles.avatar, user?.isAdmin && styles.avatarAdmin]}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-          {user?.isAdmin && (
-            <View style={styles.adminBadgeIcon}>
-              <Feather name="shield" size={12} color="#fff" />
-            </View>
-          )}
-        </View>
-
-        <Text style={styles.userName}>{displayName}</Text>
+        {user?.name && <Text style={styles.userName}>{user.name}</Text>}
         <Text style={styles.email}>{user?.email}</Text>
         {user?.registrationId && (
-          <Text style={styles.regId}>Reg ID: {user.registrationId}</Text>
+          <Text style={styles.regId}>ID: {user.registrationId}</Text>
         )}
-
-        <View style={[styles.roleBadge, { backgroundColor: roleColors.bg, borderColor: roleColors.border }]}>
-          <Feather name={user?.isAdmin ? "shield" : user?.isFaculty ? "award" : "user"} size={11} color={roleColors.text} />
-          <Text style={[styles.roleText, { color: roleColors.text }]}>{roleLabel}</Text>
+        <View style={styles.roleBadge}>
+          <Feather name={user?.isAdmin ? "shield" : "user"} size={12} color={user?.isAdmin ? C.warning : C.textSecondary} />
+          <Text style={[styles.roleText, user?.isAdmin && { color: C.warning }]}>
+            {user?.isAdmin ? "Admin Mode" : "Student"}
+          </Text>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <View style={styles.statIconWrap}>
-              <Feather name="star" size={14} color="#F59E0B" />
-            </View>
-            <Text style={[styles.statNum, { color: "#F59E0B" }]}>{user?.points ?? 0}</Text>
+            <Feather name="star" size={16} color="#F59E0B" />
+            <Text style={styles.statNum}>{user?.points ?? 0}</Text>
             <Text style={styles.statLabel}>Points</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <View style={styles.statIconWrap}>
-              <Feather name="alert-triangle" size={14} color={(user?.violationCount ?? 0) > 0 ? "#EF4444" : "#9CA3AF"} />
-            </View>
-            <Text style={[styles.statNum, { color: (user?.violationCount ?? 0) > 0 ? "#EF4444" : C.text }]}>
+            <Feather name="alert-triangle" size={16} color={(user?.violationCount ?? 0) > 0 ? C.danger : C.textSecondary} />
+            <Text style={[styles.statNum, (user?.violationCount ?? 0) > 0 && { color: C.danger }]}>
               {user?.violationCount ?? 0}
             </Text>
             <Text style={styles.statLabel}>Violations</Text>
@@ -190,10 +138,8 @@ export default function ProfileScreen() {
             <>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Feather name="truck" size={14} color="#1A6BFF" />
-                </View>
-                <Text style={[styles.statNum, { fontSize: 11 }]}>{user.vehicleNumber}</Text>
+                <Feather name="truck" size={16} color={C.textSecondary} />
+                <Text style={styles.statNum}>{user.vehicleNumber}</Text>
                 <Text style={styles.statLabel}>Vehicle</Text>
               </View>
             </>
@@ -201,126 +147,128 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {user?.isAdmin && (
-        <View style={styles.adminCard}>
-          <View style={styles.adminCardHeader}>
-            <View style={styles.adminCardIconWrap}>
-              <Feather name="shield" size={18} color="#1A6BFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.adminCardTitle}>Admin Tools</Text>
-              <Text style={styles.adminCardSub}>Manage parking system</Text>
-            </View>
-          </View>
-          <View style={styles.adminGrid}>
-            <Pressable
-              style={({ pressed }) => [styles.adminGridBtn, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/scanner"); }}
-            >
-              <View style={[styles.adminGridIcon, { backgroundColor: "#EFF6FF" }]}>
-                <Feather name="camera" size={20} color="#1A6BFF" />
-              </View>
-              <Text style={styles.adminGridLabel}>Scan QR</Text>
-              <Text style={styles.adminGridSub}>Verify entry</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.adminGridBtn, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/admin/dashboard"); }}
-            >
-              <View style={[styles.adminGridIcon, { backgroundColor: "#F0FDF4" }]}>
-                <Feather name="bar-chart-2" size={20} color="#16A34A" />
-              </View>
-              <Text style={styles.adminGridLabel}>Dashboard</Text>
-              <Text style={styles.adminGridSub}>Analytics</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.adminGridBtn, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleAdminPanel(); }}
-            >
-              <View style={[styles.adminGridIcon, { backgroundColor: "#FFF7ED" }]}>
-                <Feather name="plus-circle" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.adminGridLabel}>Add Slot</Text>
-              <Text style={styles.adminGridSub}>Expand zone</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.adminHint}>
-            Long-press any occupied slot in zone view to force-reset it.
-          </Text>
-        </View>
-      )}
-
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My Parking</Text>
+        <Text style={styles.sectionTitle}>Parking</Text>
         <View style={styles.sectionCard}>
           <MenuRow
             icon="navigation"
             label="Active Parking"
-            subtitle="View your current session"
-            iconBg="#EFF6FF"
-            iconColor="#1A6BFF"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/parking/active"); }}
+            subtitle="View current session"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/parking/active");
+            }}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="clock"
             label="Parking History"
-            subtitle="See all past sessions"
-            iconBg="#F5F3FF"
-            iconColor="#8B5CF6"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/history"); }}
-          />
-          <View style={styles.divider} />
-          <MenuRow
-            icon="award"
-            label="Rewards & Points"
-            subtitle="Badges, points and benefits"
-            iconBg="#FFFBEB"
-            iconColor="#F59E0B"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/rewards"); }}
+            subtitle="View past sessions"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/history");
+            }}
           />
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Zones</Text>
+        <Text style={styles.sectionTitle}>Admin</Text>
         <View style={styles.sectionCard}>
-          {zones.map((zone, i) => {
-            const pct = zone.totalSlots > 0 ? ((zone.occupiedSlots + zone.reservedSlots) / zone.totalSlots) * 100 : 0;
-            const statusColor = zone.freeSlots === 0 ? "#EF4444" : zone.freeSlots <= 2 ? "#F59E0B" : "#22C55E";
-            return (
-              <React.Fragment key={zone.id}>
-                {i > 0 && <View style={styles.divider} />}
-                <Pressable
-                  style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.8 : 1 }]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push({ pathname: "/zone/[id]", params: { id: String(zone.id), name: zone.name } });
-                  }}
-                >
-                  <View style={[styles.menuIcon, { backgroundColor: "#EFF6FF" }]}>
-                    <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#1A6BFF" }}>Z{zone.name}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.menuLabel}>Zone {zone.name}</Text>
-                    <View style={styles.zoneBarRow}>
-                      <View style={styles.zoneBarBg}>
-                        <View style={[styles.zoneBarFill, { width: `${pct}%` as any, backgroundColor: statusColor }]} />
-                      </View>
-                      <Text style={styles.menuSub}>{zone.freeSlots}/{zone.totalSlots} free</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.zonePill, { backgroundColor: statusColor + "20" }]}>
-                    <Text style={[styles.zonePillText, { color: statusColor }]}>
-                      {zone.freeSlots === 0 ? "Full" : zone.freeSlots <= 2 ? "Low" : "Open"}
-                    </Text>
-                  </View>
-                </Pressable>
-              </React.Fragment>
-            );
-          })}
+          <MenuRow
+            icon="shield"
+            label="Admin Mode"
+            subtitle={user?.isAdmin ? "Enabled — can reset slots" : "Disabled — enable to manage slots"}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              toggleAdmin();
+            }}
+            rightEl={
+              <Switch
+                value={!!user?.isAdmin}
+                onValueChange={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleAdmin();
+                }}
+                trackColor={{ false: C.border, true: C.warning + "80" }}
+                thumbColor={user?.isAdmin ? C.warning : C.textSecondary}
+              />
+            }
+          />
+          {user?.isAdmin && (
+            <>
+              <View style={styles.divider} />
+              <MenuRow
+                icon="camera"
+                label="Verify Student QR"
+                subtitle="Scan & approve student entry at gate"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/admin/scanner");
+                }}
+              />
+              <View style={styles.divider} />
+              <MenuRow
+                icon="bar-chart-2"
+                label="Admin Dashboard"
+                subtitle="Analytics, live vehicles & user management"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/admin/dashboard");
+                }}
+              />
+              <View style={styles.divider} />
+              <MenuRow
+                icon="plus-circle"
+                label="Add Parking Slot"
+                subtitle="Add a new slot to a zone"
+                onPress={handleAdminPanel}
+              />
+            </>
+          )}
+        </View>
+
+        {user?.isAdmin && (
+          <Text style={styles.adminHint}>
+            Long-press occupied slots in Zone Detail to force reset them.
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Zone Overview</Text>
+        <View style={styles.sectionCard}>
+          {zones.map((zone, i) => (
+            <React.Fragment key={zone.id}>
+              {i > 0 && <View style={styles.divider} />}
+              <Pressable
+                style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.8 : 1 }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: "/zone/[id]", params: { id: String(zone.id), name: zone.name } });
+                }}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: C.infoLight }]}>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: C.info }}>Z{zone.name}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuLabel}>Zone {zone.name}</Text>
+                  <Text style={styles.menuSub}>{zone.freeSlots}/{zone.totalSlots} free</Text>
+                </View>
+                <View style={[
+                  styles.zonePill,
+                  { backgroundColor: zone.freeSlots === 0 ? C.dangerLight : zone.freeSlots <= 2 ? C.warningLight : C.successLight }
+                ]}>
+                  <Text style={[
+                    styles.zonePillText,
+                    { color: zone.freeSlots === 0 ? C.danger : zone.freeSlots <= 2 ? C.warning : C.success }
+                  ]}>
+                    {zone.freeSlots === 0 ? "Full" : zone.freeSlots <= 2 ? "Limited" : "Available"}
+                  </Text>
+                </View>
+              </Pressable>
+            </React.Fragment>
+          ))}
         </View>
       </View>
 
@@ -340,181 +288,121 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  container: { paddingHorizontal: 16 },
-
-  blockedBanner: {
-    flexDirection: "row",
+  container: { paddingHorizontal: 20 },
+  avatarSection: {
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "#EF4444",
-    borderRadius: 12,
-    padding: 12,
+    paddingVertical: 24,
+    marginBottom: 8,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.tint,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
-  blockedText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#fff", flex: 1 },
-
-  profileCard: {
+  avatarText: {
+    fontSize: 26,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  userName: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: C.text,
+    marginBottom: 2,
+  },
+  regId: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+    marginBottom: 6,
+  },
+  email: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    color: C.textSecondary,
+    marginBottom: 4,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: C.surface,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 16,
+    gap: 16,
   },
-  avatarContainer: { position: "relative", marginBottom: 12 },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#1A6BFF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1A6BFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  avatarAdmin: { backgroundColor: "#1A6BFF" },
-  avatarText: { fontSize: 28, fontFamily: "Inter_700Bold", color: "#fff" },
-  adminBadgeIcon: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#1A6BFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-
-  userName: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 2 },
-  email: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, marginBottom: 2 },
-  regId: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginBottom: 8 },
-
+  statItem: { alignItems: "center", gap: 4, flex: 1 },
+  statDivider: { width: 1, height: 32, backgroundColor: C.border },
+  statNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginBottom: 16,
-  },
-  roleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-
-  statsRow: {
-    flexDirection: "row",
-    width: "100%",
     backgroundColor: C.background,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-  },
-  statItem: { flex: 1, alignItems: "center", gap: 4 },
-  statIconWrap: { marginBottom: 2 },
-  statDivider: { width: 1, height: 36, backgroundColor: C.border, alignSelf: "center" },
-  statNum: { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
-  statLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary },
-
-  adminCard: {
-    backgroundColor: "#EFF6FF",
     borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
-  adminCardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  adminCardIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1A6BFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  adminCardTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1E3A5F" },
-  adminCardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#4B7EC8" },
-  adminGrid: { flexDirection: "row", gap: 8 },
-  adminGridBtn: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 12,
-    alignItems: "center",
-    gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  adminGridIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  adminGridLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  adminGridSub: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  adminHint: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#4B7EC8",
-    textAlign: "center",
-    marginTop: 12,
-    lineHeight: 16,
-  },
-
-  section: { marginBottom: 16 },
+  roleText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  section: { marginBottom: 20 },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Inter_600SemiBold",
     color: C.textSecondary,
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
     textTransform: "uppercase",
     marginBottom: 8,
     marginLeft: 4,
   },
   sectionCard: {
     backgroundColor: C.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   menuRow: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    gap: 12,
+    gap: 14,
   },
   menuIcon: {
     width: 38,
     height: 38,
-    borderRadius: 11,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  menuLabel: { fontSize: 15, fontFamily: "Inter_500Medium", color: C.text },
-  menuSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
-  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 64 },
-
-  zoneBarRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  zoneBarBg: { flex: 1, height: 4, backgroundColor: C.borderLight, borderRadius: 4, overflow: "hidden" },
-  zoneBarFill: { height: "100%", borderRadius: 4 },
+  menuLabel: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    color: C.text,
+  },
+  menuSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+    marginTop: 2,
+  },
+  divider: { height: 1, backgroundColor: C.borderLight, marginLeft: 66 },
+  adminHint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+    marginTop: 8,
+    marginLeft: 4,
+    lineHeight: 18,
+  },
   zonePill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  zonePillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  zonePillText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });

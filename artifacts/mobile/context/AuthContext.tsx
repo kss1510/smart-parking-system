@@ -30,6 +30,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, opts?: SignUpOptions) => Promise<void>;
   signOut: () => Promise<void>;
+  toggleAdmin: () => void;
   refreshUser: () => Promise<void>;
 }
 
@@ -96,6 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const toggleAdmin = () => {
+    if (!user) return;
+    const updated = { ...user, isAdmin: !user.isAdmin };
+    persistUser(updated);
+  };
+
   const refreshUser = async () => {
     if (!user?.userId) return;
     try {
@@ -109,14 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         violationCount: data.violationCount ?? 0,
         isBlockedUntil: data.isBlockedUntil ?? null,
         isFaculty: data.isFaculty,
-        isAdmin: data.isAdmin ?? user.isAdmin,
       };
       await persistUser(updated);
     } catch {}
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut, toggleAdmin, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
