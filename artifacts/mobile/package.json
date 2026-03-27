@@ -58,6 +58,7 @@
   "dependencies": {
     "expo-camera": "~17.0.10",
     "react-native-chart-kit": "^6.12.0",
-    "react-native-qrcode-svg": "^6.3.21"
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-native-webview": "13.15.0"
   }
 }
