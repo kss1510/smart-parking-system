@@ -19,6 +19,18 @@ import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+const PLATE_REGEX = /^[A-Z]{2} \d{2} [A-Z]{2} \d{4}$/;
+
+function formatPlate(raw: string): string {
+  const clean = raw.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 10);
+  const parts: string[] = [];
+  if (clean.length > 0) parts.push(clean.slice(0, 2));
+  if (clean.length > 2) parts.push(clean.slice(2, 4));
+  if (clean.length > 4) parts.push(clean.slice(4, 6));
+  if (clean.length > 6) parts.push(clean.slice(6, 10));
+  return parts.join(" ");
+}
+
 type Role = "none" | "student" | "admin";
 
 function InputField({
@@ -57,6 +69,7 @@ export default function AuthScreen() {
   const [name, setName] = useState("");
   const [registrationId, setRegistrationId] = useState("");
   const [vehicleNumber, setVehicleNumber] = useState("");
+  const [vehicleError, setVehicleError] = useState("");
   const [adminCode, setAdminCode] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +82,11 @@ export default function AuthScreen() {
       Alert.alert("Admin Code Required", "Enter the admin secret code.");
       return;
     }
+    if (!isLogin && vehicleNumber.trim() && !PLATE_REGEX.test(vehicleNumber)) {
+      setVehicleError("Format must be: AP 31 AC 2044");
+      return;
+    }
+    setVehicleError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     try {
@@ -92,13 +110,13 @@ export default function AuthScreen() {
   const selectRole = (r: Role) => {
     setRole(r);
     setEmail(""); setPassword(""); setName(""); setRegistrationId("");
-    setVehicleNumber(""); setAdminCode(""); setIsLogin(true);
+    setVehicleNumber(""); setVehicleError(""); setAdminCode(""); setIsLogin(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const switchMode = () => {
     setIsLogin(!isLogin);
-    setName(""); setRegistrationId(""); setVehicleNumber(""); setAdminCode("");
+    setName(""); setRegistrationId(""); setVehicleNumber(""); setVehicleError(""); setAdminCode("");
   };
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
@@ -234,10 +252,27 @@ export default function AuthScreen() {
           )}
 
           {!isLogin && !isAdmin && (
-            <InputField
-              icon="truck" label="Vehicle Number" placeholder="TS09AB1234 (optional)"
-              value={vehicleNumber} onChangeText={(v: string) => setVehicleNumber(v.toUpperCase())}
-            />
+            <View>
+              <InputField
+                icon="truck" label="Vehicle Number" placeholder="AP 31 AC 2044 (optional)"
+                value={vehicleNumber}
+                onChangeText={(v: string) => {
+                  const formatted = formatPlate(v);
+                  setVehicleNumber(formatted);
+                  if (formatted.length > 0 && !PLATE_REGEX.test(formatted)) {
+                    setVehicleError("Format: AP 31 AC 2044");
+                  } else {
+                    setVehicleError("");
+                  }
+                }}
+                autoCapitalize="characters"
+              />
+              {vehicleError ? (
+                <Text style={styles.plateError}>{vehicleError}</Text>
+              ) : vehicleNumber.length > 0 ? (
+                <Text style={styles.plateHint}>Format: 2 letters · 2 digits · 2 letters · 4 digits</Text>
+              ) : null}
+            </View>
           )}
 
           <InputField
@@ -530,6 +565,20 @@ const styles = StyleSheet.create({
     color: C.text,
   },
   eyeBtn: { padding: 4 },
+  plateError: {
+    marginTop: 5,
+    marginLeft: 2,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#D9534F",
+  },
+  plateHint: {
+    marginTop: 5,
+    marginLeft: 2,
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: C.textSecondary,
+  },
   primaryBtn: {
     borderRadius: 14,
     height: 54,

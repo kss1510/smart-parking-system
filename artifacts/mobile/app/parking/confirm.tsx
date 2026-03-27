@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,6 +22,18 @@ import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+const PLATE_REGEX = /^[A-Z]{2} \d{2} [A-Z]{2} \d{4}$/;
+
+function formatPlate(raw: string): string {
+  const clean = raw.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 10);
+  const parts: string[] = [];
+  if (clean.length > 0) parts.push(clean.slice(0, 2));
+  if (clean.length > 2) parts.push(clean.slice(2, 4));
+  if (clean.length > 4) parts.push(clean.slice(4, 6));
+  if (clean.length > 6) parts.push(clean.slice(6, 10));
+  return parts.join(" ");
+}
+
 export default function ConfirmParkingScreen() {
   const { slotId, slotNumber, zoneName, zoneId } = useLocalSearchParams<{
     slotId: string;
@@ -32,7 +45,8 @@ export default function ConfirmParkingScreen() {
   const { showNotification, refreshZones, refreshActiveSession, selectedVehicle, setSelectedVehicle } = useParking();
   const { user } = useAuth();
 
-  const [vehicleNumber, setVehicleNumber] = useState(selectedVehicle ?? user?.vehicleNumber ?? "");
+  const [vehicleNumber, setVehicleNumber] = useState(formatPlate(selectedVehicle ?? user?.vehicleNumber ?? ""));
+  const [vehicleError, setVehicleError] = useState("");
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
@@ -75,11 +89,26 @@ export default function ConfirmParkingScreen() {
     };
   }, [qrToken, slotId, zoneId]);
 
+  const handleVehicleChange = (text: string) => {
+    const formatted = formatPlate(text);
+    setVehicleNumber(formatted);
+    if (formatted.length > 0 && !PLATE_REGEX.test(formatted)) {
+      setVehicleError("Format must be: AP 31 AC 2044");
+    } else {
+      setVehicleError("");
+    }
+  };
+
   const handleReserve = async () => {
     if (!vehicleNumber.trim()) {
-      Alert.alert("Vehicle Number Required", "Enter your vehicle number to reserve this slot.");
+      setVehicleError("Vehicle number is required to reserve a slot.");
       return;
     }
+    if (!PLATE_REGEX.test(vehicleNumber)) {
+      setVehicleError("Format must be: AP 31 AC 2044  (e.g. TS 09 AB 1234)");
+      return;
+    }
+    setVehicleError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setLoading(true);
     try {
@@ -191,29 +220,31 @@ export default function ConfirmParkingScreen() {
               <Feather name="truck" size={18} color={C.tint} />
               <Text style={styles.inputLabel}>Vehicle Number</Text>
             </View>
-            <Text style={styles.inputHint}>Enter your license plate to generate a QR entry pass</Text>
-            <View style={styles.inputRow}>
+            <Text style={styles.inputHint}>Format: AP 31 AC 2044  (2 letters · 2 digits · 2 letters · 4 digits)</Text>
+            <View style={[styles.inputRow, vehicleError ? styles.inputRowError : null]}>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. TN-01-AB-1234"
+                placeholder="AP 31 AC 2044"
                 placeholderTextColor={C.textSecondary}
                 value={vehicleNumber}
-                onChangeText={setVehicleNumber}
+                onChangeText={handleVehicleChange}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 returnKeyType="done"
                 onSubmitEditing={handleReserve}
+                maxLength={13}
               />
               {vehicleNumber.length > 0 && (
-                <Pressable onPress={() => setVehicleNumber("")}>
+                <Pressable onPress={() => { setVehicleNumber(""); setVehicleError(""); }}>
                   <Feather name="x" size={18} color={C.textSecondary} />
                 </Pressable>
               )}
             </View>
+            {vehicleError ? <Text style={styles.inputError}>{vehicleError}</Text> : null}
 
             {user?.vehicleNumber && user.vehicleNumber !== vehicleNumber && (
               <Pressable
-                onPress={() => setVehicleNumber(user.vehicleNumber!)}
+                onPress={() => { setVehicleNumber(formatPlate(user.vehicleNumber!)); setVehicleError(""); }}
                 style={styles.savedVehicleChip}
               >
                 <Feather name="truck" size={13} color={C.tint} />
@@ -399,6 +430,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     gap: 10,
+  },
+  inputRowError: {
+    borderColor: "#D9534F",
+    borderWidth: 1.5,
+  },
+  inputError: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#D9534F",
   },
   input: {
     flex: 1,

@@ -139,12 +139,17 @@ router.get("/zone/:zoneId", async (req, res) => {
   return res.json(slots.map(s => slotToJson(s, zone?.name ?? "")));
 });
 
+const PLATE_REGEX = /^[A-Z]{2} \d{2} [A-Z]{2} \d{4}$/;
+
 router.post("/:slotId/reserve", async (req, res) => {
   const slotId = parseInt(req.params.slotId, 10);
   const { vehicleNumber, userId } = req.body;
 
   if (!vehicleNumber || !String(vehicleNumber).trim()) {
     return res.status(400).json({ error: "vehicleNumber is required" });
+  }
+  if (!PLATE_REGEX.test(String(vehicleNumber).trim().toUpperCase())) {
+    return res.status(400).json({ error: "Invalid vehicle number format. Expected: AP 31 AC 2044" });
   }
 
   const now = new Date();

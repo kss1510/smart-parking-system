@@ -32,10 +32,16 @@ function userResponse(user: typeof usersTable.$inferSelect, token: string) {
   };
 }
 
+const PLATE_REGEX = /^[A-Z]{2} \d{2} [A-Z]{2} \d{4}$/;
+
 router.post("/register", async (req, res) => {
   const { email, password, name, registrationId, vehicleNumber, adminCode } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password required" });
+  }
+
+  if (vehicleNumber && !PLATE_REGEX.test(String(vehicleNumber).trim().toUpperCase())) {
+    return res.status(400).json({ error: "Invalid vehicle number format. Expected: AP 31 AC 2044" });
   }
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email));
@@ -91,6 +97,12 @@ router.get("/profile/:userId", async (req, res) => {
 router.patch("/profile/:userId", async (req, res) => {
   const userId = parseInt(req.params.userId, 10);
   const { name, registrationId, vehicleNumber } = req.body;
+
+  if (vehicleNumber !== undefined && vehicleNumber !== null && String(vehicleNumber).trim() !== "") {
+    if (!PLATE_REGEX.test(String(vehicleNumber).trim().toUpperCase())) {
+      return res.status(400).json({ error: "Invalid vehicle number format. Expected: AP 31 AC 2044" });
+    }
+  }
 
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = String(name).trim() || null;
