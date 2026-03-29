@@ -83,6 +83,20 @@ AI Logic (Slot Allocation Engine)
 ## 📱 Screenshots
 
 > Add your app screenshots here
+> <img width="405" height="709" alt="image" src="https://github.com/user-attachments/assets/3726c763-e185-4eeb-a7bc-0d633270e95c" />
+<img width="415" height="761" alt="image" src="https://github.com/user-attachments/assets/e771b5c7-092c-43da-9d89-1303625e84a2" />
+<img width="374" height="811" alt="image" src="https://github.com/user-attachments/assets/ba37c248-5137-4e50-a2af-90842ea94845" />
+<img width="334" height="710" alt="image" src="https://github.com/user-attachments/assets/66eee34f-926a-493f-8bff-75df83f0b032" />
+<img width="357" height="714" alt="image" src="https://github.com/user-attachments/assets/8b0e792e-f249-46de-8644-e3fbf81bdcbd" />
+<img width="381" height="680" alt="image" src="https://github.com/user-attachments/assets/5e16fd8b-c049-4758-8554-c57d41ffc533" />
+<img width="363" height="717" alt="image" src="https://github.com/user-attachments/assets/92108f04-ee54-4a6d-a4f6-3f03e01c9ff4" />
+<img width="717" height="1600" alt="image" src="https://github.com/user-attachments/assets/6b55c827-031f-4f3f-83f8-e5c2837af461" />
+<img width="717" height="1600" alt="image" src="https://github.com/user-attachments/assets/fa30484c-8b6b-42c6-8ed0-5782ae45ac98" />
+<img width="717" height="1600" alt="image" src="https://github.com/user-attachments/assets/d7318c53-ed78-4db3-9615-62fc41c3f07b" />
+<img width="717" height="1600" alt="image" src="https://github.com/user-attachments/assets/401a53a5-8c13-4e08-85f1-e192f3d936a5" />
+
+
+
 
 * Home Screen
 * Parking Zones
