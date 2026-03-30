@@ -139,7 +139,7 @@ npm start
 
 ## 👨‍💻 Author
 
-**Suhas Kotha**
+**Suhas Kotha, Siva Charan**
 
 ---
 
