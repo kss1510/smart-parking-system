@@ -74,7 +74,7 @@ AI Logic (Slot Allocation Engine)
 
 * **Frontend:** React Native (Expo)
 * **Backend:** Node.js / Express
-* **Database:** MongoDB
+* **Database:** PostgreSQL
 * **APIs:** Maps API (for navigation)
 * **Authentication:** QR / RFID simulation
 
